@@ -1,0 +1,53 @@
+{
+  "name": "@tianhai/pi-topdown-kit",
+  "version": "0.1.0",
+  "description": "Scaffold-first, top-down layered workflow for AI coding agents — the skeleton IS the plan",
+  "keywords": [
+    "pi-package",
+    "ai-coding-agent",
+    "workflow",
+    "scaffold",
+    "top-down",
+    "stepwise-refinement",
+    "pi-extension",
+    "brainstorm",
+    "stub-driven",
+    "layered"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check .",
+    "check": "biome check . && vitest run"
+  },
+  "license": "MIT",
+  "author": "yinloo-ola",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yinloo-ola/pi-topdown-kit.git"
+  },
+  "files": [
+    "extensions/",
+    "skills/",
+    "docs/",
+    "LICENSE",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "extensions/workflow-guard.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.15",
+    "@earendil-works/pi-coding-agent": "*",
+    "@types/node": "^25.9.2",
+    "vitest": "^4.0.18"
+  }
+}

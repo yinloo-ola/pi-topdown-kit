@@ -1,0 +1,4 @@
+node_modules/
+
+# pi local state
+.pi/topdown-kit-state.json
