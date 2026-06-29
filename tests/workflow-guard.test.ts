@@ -98,6 +98,14 @@ describe("isSafeCommand", () => {
     expect(isSafeCommand("git tag -l")).toBe(true);
     expect(isSafeCommand("git tag --list 'v*'")).toBe(true);
     expect(isSafeCommand("git describe --tags")).toBe(true);
+    expect(isSafeCommand("git branch")).toBe(true);
+    expect(isSafeCommand("git branch -a")).toBe(true);
+    expect(isSafeCommand("git branch --show-current")).toBe(true);
+  });
+
+  it("blocks git branch delete", () => {
+    expect(isSafeCommand("git branch -d old-feature")).toBe(false);
+    expect(isSafeCommand("git branch -D old-feature")).toBe(false);
   });
 
   it("allows go read-only subcommands", () => {

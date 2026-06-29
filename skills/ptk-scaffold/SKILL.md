@@ -19,7 +19,8 @@ This skill absorbs what other kits split into "writing-plans" + "design-review":
 
    - **(a) Resume a paused checkpoint?** If `.ptk-scaffold` sentinels or `stub()` files exist on disk but there is **no `scaffold:` commit in `git log`**, you are resuming a skeleton that was emitted and then paused at `⏸ CHECKPOINT: skeleton`. **Do not re-emit.** Skip straight to step 8 (the checkpoint) and present the existing uncommitted skeleton for review. (This is what makes the checkpoint menu's "resume later with /skill:ptk-scaffold" actually work across `/new`.)
    - **(b) Re-entering a committed skeleton?** If a `scaffold:` commit already exists in the log, the skeleton is already committed — say "Skeleton already committed for <topic>. Did you mean `/skill:ptk-execute` to fill it, or re-scaffold on top?" and wait for the user.
-   - **(c) Otherwise: fresh scaffold.** Continue to step 3.
+   - **(c) Resuming from brainstorm?** If `docs/plans/*-decisions.md` exists (uncommitted) but no `.ptk-scaffold` sentinels and no `scaffold:` commit exist, you likely just came from a brainstorm session. Re-read the decisions doc and proceed to step 4 (commit it) — do not re-run brainstorm.
+   - **(d) Otherwise: fresh scaffold.** None of the above. Continue to step 3.
 
 3. **Find the decisions doc** — look for `docs/plans/*-decisions.md`. If none exists, say "No decisions doc found. Run `/skill:ptk-brainstorming` first." and stop. Read it in full.
 

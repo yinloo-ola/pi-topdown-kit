@@ -11,6 +11,7 @@ A 6-phase debugging discipline. Phase 1 is the skill — spend disproportionate 
 
 Create a fast, deterministic, agent-runnable pass/fail signal for the bug before doing anything else. Try in this order: failing test, curl script, CLI invocation, headless browser script.
 
+> **Phase awareness.** During blocking phases (brainstorm/verify), the guard restricts bash to read-only commands. `npm test`, `go test`, `python`, and `node` are all blocked — only `curl`-based feedback loops work in those phases. Prefer `curl` scripts during blocking phases. For test/CLI loops, move to an unlocked phase (scaffold/execute/finalize) or diagnose standalone (no blocking skill active).
 Other strategies when the basics don't work:
 - **Bisection** — bug appeared between two known states? Automate "boot at state X, check, repeat" to bisect
 - **Replay** — save a real network request or event log to disk, replay it through the code path in isolation
