@@ -213,6 +213,56 @@ describe("shouldBlockFilePath", () => {
   });
 });
 
+describe("guard behavior for shell-pipeline forms (coherence contract)", () => {
+  // Commands the skills tell the agent to run. The blocking-phase ones
+  // (brainstorm, verify) MUST pass isSafeCommand or the skill is broken.
+  // Unlocked-phase commands (scaffold/execute/finalize) run with phase=null
+  // and bypass the guard entirely, so they're not tested here.
+
+  describe("brainstorm (blocking) — git state check", () => {
+    it("allows 'git status'", () => {
+      expect(isSafeCommand("git status")).toBe(true);
+    });
+    it("allows 'git log --oneline -5'", () => {
+      expect(isSafeCommand("git log --oneline -5")).toBe(true);
+    });
+    it("allows the chained brainstorm step-1 command", () => {
+      expect(isSafeCommand("git status && git log --oneline -5")).toBe(true);
+    });
+  });
+
+  describe("verify (blocking) — git scope check", () => {
+    it("allows 'git log --oneline'", () => {
+      expect(isSafeCommand("git log --oneline")).toBe(true);
+    });
+    it("allows 'git diff --stat'", () => {
+      expect(isSafeCommand("git diff --stat")).toBe(true);
+    });
+    it("allows 'git diff'", () => {
+      expect(isSafeCommand("git diff")).toBe(true);
+    });
+  });
+
+  describe("verify/execute — frontier query forms", () => {
+    it("allows a simple scoped grep (single sentinel, common case)", () => {
+      expect(isSafeCommand("grep -rnE 'stub\\(\"' src/auth")).toBe(true);
+    });
+    it("allows find for sentinels", () => {
+      expect(isSafeCommand("find . -name .ptk-scaffold -not -path '*/node_modules/*'")).toBe(true);
+    });
+    // Shell loops use ';' which splitCompoundCommand splits on. Each part must
+    // independently match a SAFE pattern. 'for'/'while'/'do'/'done' don't.
+    it("BLOCKS a 'for f in ...; do ...; done' feature-listing loop", () => {
+      expect(isSafeCommand('for f in $(find . -name .ptk-scaffold); do echo "$f"; done')).toBe(false);
+    });
+    it("BLOCKS a while-read pipeline over sentinels", () => {
+      expect(
+        isSafeCommand("find . -name .ptk-scaffold -print0 | while IFS= read -r -d '' f; do grep -rnE x \"$f\"; done"),
+      ).toBe(false);
+    });
+  });
+});
+
 describe("phaseForInput", () => {
   it("enters brainstorm phase on /skill:ptk-brainstorming", () => {
     expect(phaseForInput("/skill:ptk-brainstorming", null)).toBe("brainstorm");

@@ -13,24 +13,24 @@ Ship the completed work. By this point the stub frontier is empty — for every 
 
 If more than one `.ptk-scaffold` sentinel exists, several features are in flight. **Pick one to finalize** — list each sentinel's `# feature:` line and ask the user which to ship. Finalizing one feature removes only that feature's sentinels and stub helper (if it owns them) and archives only that feature's `*-decisions.md` / `*-verification-report.md`. Do not finalize two features in one run.
 
-### Confirm the frontier is empty
+Before archiving, verify the kit's invariant — every stub is filled under the chosen feature's tree.
 
-Before archiving, verify the kit's invariant — every stub is filled:
+The sentinel's first non-comment line is the ERE that matches this tree's stub call sites. Read it and find every call site matching the ERE under the sentinel's directory — use whatever search tool you have (builtin `grep`, `ast_search`, `ffgrep`, etc.). Also verify no `it.todo` or `t.Skip` markers remain. When both searches return nothing meaningful, the frontier is empty.
 
-```
-# For the CHOSEN feature, grep its sentinel's pattern under its dir:
-#   $SENTINEL = the .ptk-scaffold file the user picked
-#   $SENTINEL_DIR = its directory
-SENTINEL=<chosen>.ptk-scaffold
-SENTINEL_DIR=$(dirname "$SENTINEL")
-grep -rnE "$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)" "$SENTINEL_DIR"   # should print nothing
-grep -rn 'it.todo\|t.Skip' "$SENTINEL_DIR"                                  # should return nothing meaningful
+> `ptk-finalizing` runs with the guard unlocked (phase=null), so bash pipelines work fine. The code block below gives bash-form examples, but the same query works through any search tool.
+
+Example, bash form:
+```bash
+# $SENTINEL = the .ptk-scaffold file the user picked
+# $SENTINEL_DIR = its directory
+pat=$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)   # first non-comment line is the ERE
+grep -rnE "$pat" "$SENTINEL_DIR"                       # should print nothing — all stubs filled
+grep -rn 'it.todo\|t.Skip' "$SENTINEL_DIR"              # should return nothing meaningful
 ```
 
 Also confirm the chosen `$SENTINEL` is present — it's the marker finalize must close out.
 
 If stubs remain, warn:
-
 ```
 ⚠️ N stubs still unfilled (frontier not empty). Continue with finalizing, or go back to /skill:ptk-execute?
 ```

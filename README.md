@@ -88,10 +88,11 @@ export async function signup(input: SignupInput): Promise<User> {
 
 **The frontier** (what's left to fill) is found by grepping `stub()` call sites — no progress file to maintain or drift from:
 
+Example, bash form:
 ```bash
 # Each .ptk-scaffold sentinel's first non-comment line is the ERE for its tree's
-# stub call sites (scaffold derived it from the syntax it emitted). Grep that
-# pattern under the sentinel's directory:
+# stub call sites (scaffold derived it from the syntax it emitted). Read the
+# pattern and search — use whatever tool you have (grep, ast_search, ffgrep, …):
 find . -name '.ptk-scaffold' -print0 | while IFS= read -r -d '' f; do
   grep -rnE "$(grep -vE '^\s*(#|$)' "$f" | head -1)" "$(dirname "$f")"
 done                       # what's pending; empty output → done
@@ -99,7 +100,7 @@ done                       # what's pending; empty output → done
 
 > **Search for call sites, not the error tag.** The string `ptk-stub` only appears in the helper's `throw`/`panic` message — the **runtime diagnostic** you see when an unfilled stub actually executes, not the frontier query. Searching `ptk-stub` finds the 1-line helper definition no matter how many stubs exist. Search for the `stub("…")` call sites instead.
 
-> **The frontier pattern is language-specific, so it isn't hardcoded.** `ptk-scaffold` derives it from the literal stub syntax it just emitted (e.g. `stub\("` for TS, `Stub\("` for Go, `\bstub "` for Haskell) and writes it into the `.ptk-scaffold` sentinel. Execute/verify/finalize read it from there and run builtin `grep` — **no extension required, works for any language scaffold can emit.** Polyglot repos just carry one sentinel per language tree.
+> **The frontier pattern is language-specific, so it isn't hardcoded.** `ptk-scaffold` derives it from the literal stub syntax it just emitted (e.g. `stub\(` for TS, `Stub\(` for Go, `\bstub "` for Haskell) and writes it into the `.ptk-scaffold` sentinel. Execute/verify/finalize read it from there and search — builtin `grep` works; a structural tool like `ast_search` is more precise where available.
 
 Two layers of defense: (1) **scope** — grep only under sentinel dirs, so stray matches elsewhere are invisible; (2) **per-tree pattern** — scaffold recorded the exact call-site syntax, so the query matches real stubs and skips the helper definition, imports, and unrelated code.
 

@@ -1,6 +1,6 @@
 ---
 name: ptk-execute
-description: "Use this after ptk-scaffold to fill the stub() markers layer by layer. Greps for stub() call sites to find the frontier, fills one stub + its unit test per increment (red -> green), recursively re-stubs when a fill is too complex, and keeps the tree green at every commit. Uses only pi's built-in tools (grep/find). Use when the user says 'execute', 'fill the stubs', 'implement', or after a skeleton has been committed."
+description: "Use this after ptk-scaffold to fill the stub() markers layer by layer. Finds stub() call sites (the frontier) using whatever search tool is available, fills one stub + its unit test per increment (red -> green), recursively re-stubs when a fill is too complex, and keeps the tree green at every commit. Use when the user says 'execute', 'fill the stubs', 'implement', or after a skeleton has been committed."
 ---
 
 # Execute
@@ -14,19 +14,17 @@ Fill the stubs the scaffold left behind. **Layer by layer** (top-down), one stub
 1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted changes.
 2. **Find the skeleton** — there must be a committed skeleton (last commit message starts with `scaffold:`) containing `stub()` call sites and `.ptk-scaffold` sentinels. If none exists, say "No skeleton found. Run `/skill:ptk-scaffold` first." and stop.
 3. **Read the decisions doc** — `docs/plans/*-decisions.md` — for context on what the feature is meant to do. **Read `docs/lessons.md`** if it exists — follow every rule while working.
-4. **Find the sentinel dirs and pick the feature** — these mark the active frontier:
-   ```
-   find . -name '.ptk-scaffold' -not -path '*/node_modules/*'
-   ```
-   **If more than one sentinel exists**, several features are in flight. Do not grep them all (that would interleave fills from different features). Instead, list each sentinel's `# feature:` line and ask the user which to work on:
+4. **Find the sentinel dirs and pick the feature** — `.ptk-scaffold` files mark the active frontier. Find every one under the repo (excluding `node_modules`). Use whatever file-search tool you have — the builtin `find`, `fffind`, an extension, or a simple `ls`-glob; the goal is the list of sentinel paths.
+
+   **If more than one sentinel exists**, several features are in flight. Do not search them all (that would interleave fills from different features). Instead, read each sentinel's `# feature:` line and ask the user which feature to work on. (Use any file-read tool to get the line — the builtin `read`, `grep`, or `bash cat`.) Example, bash form:
    ```
    for f in $(find . -name '.ptk-scaffold'); do
      echo "$f -> $(grep '^# feature:' "$f" | head -1)"
    done
    ```
-   Remember the chosen sentinel's directory as `<sentinel-dir>` and scope **every** frontier query below to it. If a sentinel has no `# feature:` line (older format), use its directory path as the label.
+   Remember the chosen sentinel's path and directory, and scope **every** frontier query below to that directory. If a sentinel has no `# feature:` line (older format), use its directory path as the label.
 
-   The frontier is the set of stubs under the chosen `<sentinel-dir>`.
+   The frontier is the set of stubs under the chosen sentinel's directory.
 
 ## The frontier
 
@@ -36,21 +34,19 @@ The live, drift-free todo list. No progress file — the codebase's own searchab
 
 > **The frontier pattern is language-specific, so it's not hardcoded here.** `ptk-scaffold` derived it from the stub syntax it emitted and wrote it into each `.ptk-scaffold` sentinel's first non-comment line. Read it from there — this skill stays language-agnostic.
 
-```bash
-# List pending stubs for the CHOSEN feature (picked in "Before you start"):
-#   $SENTINEL = the .ptk-scaffold file the user picked
-#   $SENTINEL_DIR = its directory
-SENTINEL=<path-to-chosen-.ptk-scaffold>
-SENTINEL_DIR=$(dirname "$SENTINEL")
-pat=$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)   # first non-comment line is the ERE
-grep -rnE "$pat" "$SENTINEL_DIR"                  # what's pending
+Find all stub call sites under the chosen sentinel's directory. The sentinel's first non-comment line is the ERE that matches this tree's call sites — read it and use it as your search pattern.
 
-# Done? The scoped grep above prints nothing, AND no it.todo/t.Skip markers remain:
-grep -rnE "$pat" "$SENTINEL_DIR"                  # should print nothing
-grep -rn 'it.todo\|t.Skip' "$SENTINEL_DIR"          # should print nothing
+Use whatever search tool you have available. The builtin `grep` works; a structural search extension (e.g. `ast_search`) is more precise if present; use what fits. Bash example:
+```bash
+# $SENTINEL = chosen .ptk-scaffold path; $SENTINEL_DIR = its directory
+pat=$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)   # first non-comment line is the ERE
+grep -rnE "$pat" "$SENTINEL_DIR"                  # what's pending; empty → done
+grep -rn 'it.todo\|t.Skip' "$SENTINEL_DIR"          # also check no test placeholders remain
 ```
 
-This uses only pi's built-in `grep` and `find` — no extension required. The two layers of defense are (1) **scope** — grep only under `.ptk-scaffold` sentinel dirs, so stray matches elsewhere in the repo are invisible; (2) **per-tree pattern** — scaffold recorded the exact call-site syntax for this tree's language, so the query matches real stubs and skips the helper definition, imports, and unrelated code.
+The goal, not the tool, is what matters: every match is an unfilled stub; when the search returns nothing (and no `it.todo`/`t.Skip` markers remain), the frontier is empty. Two layers of defense make the query trustworthy regardless of tool: (1) **scope** — search only under the chosen sentinel's directory, so stray matches elsewhere in the repo are invisible; (2) **per-tree pattern** — scaffold recorded the exact call-site syntax for this tree's language, so the query matches real stubs and skips the helper definition, imports, and unrelated code.
+
+> **Phase awareness.** `ptk-execute` runs with the guard unlocked (phase=null), so bash pipelines including `for`/`while` loops over sentinels are fine here. But `ptk-verify` and `ptk-brainstorm` run in *blocking* phases where the guard restricts bash to read-only commands and blocks shell loops (`for`/`while` with `;` get split and fail the allowlist). If you ever need this query during a blocking phase, prefer non-bash tools (the `find`/`grep`/`read` builtins, or an extension) over bash pipelines.
 
 > **Fallback** if a sentinel is empty or unreadable: default the pattern to `stub\("` (the C-family default) and warn the user that the sentinel may be malformed.
 
