@@ -105,18 +105,40 @@ describe("auth.service", () => {
 
 The todo strings echo the stub's doc comment — execute will expand each into a real test.
 
-### 5. Write the sentinel
+### 5. Write the sentinel (carries the frontier pattern)
 
-Write an empty `.ptk-scaffold` file at the root of each scaffolded module tree. Its presence means "this tree is an active frontier — execute greps here for unfilled stubs."
+Write a `.ptk-scaffold` file at the root of each scaffolded module tree. **Its first non-comment line is the ERE that matches this tree's stub call sites** — execute, verify, and finalize read it to find the frontier, so they never hardcode a language-specific pattern.
+
+Derive the pattern from the literal stub syntax you just emitted — whatever a call site looks like in this language, grep for that. You wrote the stubs, so you know exactly what to search for:
+
+| You wrote (call site) | Sentinel `.ptk-scaffold` contents | Language |
+|---|---|---|
+| `return stub("auth.signup")` | `stub\("` | TS/JS/Rust/Swift/Kotlin/Java/C#/… |
+| `return Stub("auth.signup")` | `Stub\("` | Go |
+| `stub "auth.signup"` | `\bstub "` | Haskell/Elm/OCaml (juxtaposition) |
+| `ptk_stub("auth.signup")` | `ptk_stub\(["']` | Python (both quote styles; collision-renamed) |
+| `(stub "auth.signup")` | `\(stub "` | Clojure/Lisp |
+
+`#`-prefixed lines in the sentinel are comments and ignored by consumers; the first non-comment non-blank line is the pattern. This keeps the sentinel self-documenting:
+
+```
+# .ptk-scaffold — written by ptk-scaffold, removed by ptk-finalize.
+# Frontier pattern (ERE): matches unfilled stub() call sites in this tree.
+stub\("
+```
+
+Presence of `.ptk-scaffold` means "this tree is an active frontier — search here." Its pattern line says *how* to search. Execute greps each sentinel's pattern under that sentinel's directory.
 
 ```
 src/.ptk-scaffold
-src/auth/.ptk-scaffold   # if auth is a distinct subtree
+src/auth/.ptk-scaffold   # if auth is a distinct subtree (e.g. a different language)
 ```
 
 The sentinel is removed by `ptk-finalize` when its subtree's grep goes empty.
 
 > **Don't gitignore it.** `.ptk-scaffold` must be committed so it survives across sessions and `/new`. It's not in any standard gitignore pattern; if the project has an aggressive dotfile ignore, explicitly `git add -f`.
+
+> **Polyglot repos:** each sentinel carries its own tree's pattern, so a TS frontend and a Go backend each get a sentinel with the right ERE. No global pattern needs to cover both.
 
 ### 6. Run the hazard check (absorbed from design-review)
 

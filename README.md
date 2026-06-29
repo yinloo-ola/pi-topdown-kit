@@ -86,22 +86,22 @@ export async function signup(input: SignupInput): Promise<User> {
 }
 ```
 
-**The frontier** (what's left to fill) is a structural search for `stub()` call sites — no progress file to maintain or drift from:
+**The frontier** (what's left to fill) is found by grepping `stub()` call sites — no progress file to maintain or drift from:
 
 ```bash
-# PRIMARY: structural search — matches call expressions, not the helper, not comments
-ast_search 'stub($ARG)' $(find . -name '.ptk-scaffold' -exec dirname {} \;)   # what's pending
-# empty output → done
-
-# FALLBACK (if ast_search unavailable): grep the call-site text
-grep -rn 'stub("' <sentinel-dirs>     # TS
-grep -rn 'Stub("' <sentinel-dirs>     # Go
+# Each .ptk-scaffold sentinel's first non-comment line is the ERE for its tree's
+# stub call sites (scaffold derived it from the syntax it emitted). Grep that
+# pattern under the sentinel's directory:
+find . -name '.ptk-scaffold' -print0 | while IFS= read -r -d '' f; do
+  grep -rnE "$(grep -vE '^\s*(#|$)' "$f" | head -1)" "$(dirname "$f")"
+done                       # what's pending; empty output → done
 ```
 
-> **Search for call sites, not the error tag.** The string `ptk-stub` only appears inside the helper's `throw`/`panic` message — it's the **runtime diagnostic** you see when an unfilled stub actually executes, not the frontier query. Searching `ptk-stub` finds the 1-line helper definition no matter how many stubs exist. Search for the `stub("…")` call sites instead. Two layers of defense:
+> **Search for call sites, not the error tag.** The string `ptk-stub` only appears in the helper's `throw`/`panic` message — the **runtime diagnostic** you see when an unfilled stub actually executes, not the frontier query. Searching `ptk-stub` finds the 1-line helper definition no matter how many stubs exist. Search for the `stub("…")` call sites instead.
 
-1. **Scope** — search only under `.ptk-scaffold` sentinel dirs (handles greenfield modules).
-2. **Structural match** — `ast_search 'stub($ARG)'` finds call expressions; immune to stray `ptk-stub` mentions in comments and to the helper definition itself.
+> **The frontier pattern is language-specific, so it isn't hardcoded.** `ptk-scaffold` derives it from the literal stub syntax it just emitted (e.g. `stub\("` for TS, `Stub\("` for Go, `\bstub "` for Haskell) and writes it into the `.ptk-scaffold` sentinel. Execute/verify/finalize read it from there and run builtin `grep` — **no extension required, works for any language scaffold can emit.** Polyglot repos just carry one sentinel per language tree.
+
+Two layers of defense: (1) **scope** — grep only under sentinel dirs, so stray matches elsewhere are invisible; (2) **per-tree pattern** — scaffold recorded the exact call-site syntax, so the query matches real stubs and skips the helper definition, imports, and unrelated code.
 
 `.ptk-scaffold` sentinels are written by scaffold, removed by finalize. Committed (never gitignored), so the frontier survives `/new` and resumes cleanly across sessions.
 
@@ -170,7 +170,7 @@ pi install npm:@tianhai/pi-topdown-kit
 
 > /skill:ptk-execute
 
-# (agent ast_searches stub() call sites, fills scheduler/dispatcher first, then queue, then repo,
+# (agent greps stub() call sites via each sentinel's recorded pattern, fills dispatcher first,
 #  recursively re-stubbing anything too complex. tree green at every commit)
 
 > /skill:ptk-verify
