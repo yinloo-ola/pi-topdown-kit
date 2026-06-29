@@ -48,6 +48,9 @@ describe("isSafeCommand", () => {
     expect(isSafeCommand("git status")).toBe(true);
     expect(isSafeCommand("git log --oneline")).toBe(true);
     expect(isSafeCommand("git diff")).toBe(true);
+    expect(isSafeCommand("git config --get user.name")).toBe(true);
+    expect(isSafeCommand("git config user.email x@y.com")).toBe(false);
+    expect(isSafeCommand("git config --global init.defaultBranch main")).toBe(false);
   });
 
   it("blocks editors", () => {

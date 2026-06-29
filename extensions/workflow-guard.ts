@@ -43,7 +43,7 @@ const DESTRUCTIVE_PATTERNS = [
   /\bpip\s+(install|uninstall)/i,
   /\bapt(-get)?\s+(install|remove|purge|update|upgrade)/i,
   /\bbrew\s+(install|uninstall|upgrade)/i,
-  /\bgit\s+(add|commit|push|pull|merge|rebase|reset|checkout|branch\s+-[dD]|stash(?!\s+list)|cherry-pick|revert|tag(?!\s+(-l|--list))|init|clone)/i,
+  /\bgit\s+(add|commit|push|pull|merge|rebase|reset|checkout|branch\s+-[dD]|stash(?!\s+list)|cherry-pick|revert|tag(?!\s+(-l|--list))|init|clone|config(?!\s+--get))/i,
   /\bsudo\b/i,
   /\bsu\b/i,
   /\bkill\b/i,
@@ -175,9 +175,10 @@ export function phaseForInput(text: string, currentPhase: Phase): Phase {
     if (skill in SKILL_TO_PHASE) {
       return SKILL_TO_PHASE[skill];
     }
-    // Unlocking skills write source by design. Exact match — the regex above
-    // captures only the skill name, so "/skill:ptk-scaffold go" still matches.
-    if (UNLOCKING_SKILLS.some((prefix) => skill === prefix)) {
+    // Unlocking skills write source by design. Exact match on the skill name
+    // (the regex above already stripped any trailing args), so
+    // "/skill:ptk-scaffold go" matches but "/skill:ptk-scaffoldXYZ" does not.
+    if (UNLOCKING_SKILLS.some((name) => skill === name)) {
       return null;
     }
   }
@@ -193,6 +194,9 @@ export function shouldBlockFilePath(filePath: string, cwd: string): boolean {
   return !absolute.startsWith(`${plansDir}/`);
 }
 
+/** Current phase — public introspection hook for debugging and for other
+ *  extensions that want to read (not set) the guard's state. Not used
+ *  internally by this guard. */
 export function getCurrentPhase(): Phase {
   return phase;
 }
