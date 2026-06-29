@@ -13,7 +13,7 @@ The core insight: code that passes tests is not code that's ready. Working code 
 
 ## Process
 
-1. **Check what's been done** — run `git log --oneline` and `git diff --stat` to understand the scope of recent changes. Confirm the frontier is empty: for each `.ptk-scaffold` sentinel, grep its recorded pattern (first non-comment line) under its directory — should return nothing. If stubs remain, say "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop. (See ptk-execute for the sentinel-pattern loop; the pattern is language-specific and lives in the sentinel, not hardcoded here.)
+1. **Check what's been done** — run `git log --oneline` and `git diff --stat` to understand the scope of recent changes. **If more than one `.ptk-scaffold` sentinel exists**, several features are in flight — list each sentinel's `# feature:` line and ask the user which to verify; scope all checks below to that sentinel's directory (`$SENTINEL_DIR`). Confirm the frontier is empty for that feature: grep its recorded pattern (first non-comment line) under its directory — should return nothing. If stubs remain, say "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop. (See ptk-execute for the sentinel-pattern loop; the pattern is language-specific and lives in the sentinel, not hardcoded here.)
 
 2. **Identify the project's layers** — before reviewing, map the codebase's architecture. The skeleton's module outline (from `docs/plans/*-decisions.md`) is the starting map, but verify it against what was actually built. Note the patterns: handlers/routes → services → repositories → models. This map drives the traceability pass.
 

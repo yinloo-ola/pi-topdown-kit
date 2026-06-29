@@ -14,11 +14,19 @@ Fill the stubs the scaffold left behind. **Layer by layer** (top-down), one stub
 1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted changes.
 2. **Find the skeleton** — there must be a committed skeleton (last commit message starts with `scaffold:`) containing `stub()` call sites and `.ptk-scaffold` sentinels. If none exists, say "No skeleton found. Run `/skill:ptk-scaffold` first." and stop.
 3. **Read the decisions doc** — `docs/plans/*-decisions.md` — for context on what the feature is meant to do. **Read `docs/lessons.md`** if it exists — follow every rule while working.
-4. **Find the sentinel dirs** — these mark the active frontier:
+4. **Find the sentinel dirs and pick the feature** — these mark the active frontier:
    ```
    find . -name '.ptk-scaffold' -not -path '*/node_modules/*'
    ```
-   The frontier is the set of stubs under these dirs.
+   **If more than one sentinel exists**, several features are in flight. Do not grep them all (that would interleave fills from different features). Instead, list each sentinel's `# feature:` line and ask the user which to work on:
+   ```
+   for f in $(find . -name '.ptk-scaffold'); do
+     echo "$f -> $(grep '^# feature:' "$f" | head -1)"
+   done
+   ```
+   Remember the chosen sentinel's directory as `<sentinel-dir>` and scope **every** frontier query below to it. If a sentinel has no `# feature:` line (older format), use its directory path as the label.
+
+   The frontier is the set of stubs under the chosen `<sentinel-dir>`.
 
 ## The frontier
 
@@ -29,20 +37,17 @@ The live, drift-free todo list. No progress file — the codebase's own searchab
 > **The frontier pattern is language-specific, so it's not hardcoded here.** `ptk-scaffold` derived it from the stub syntax it emitted and wrote it into each `.ptk-scaffold` sentinel's first non-comment line. Read it from there — this skill stays language-agnostic.
 
 ```bash
-# List pending stubs: for each sentinel, grep its pattern under its directory.
-find . -name '.ptk-scaffold' -not -path '*/node_modules/*' -print0 |
-  while IFS= read -r -d '' f; do
-    dir=$(dirname "$f")
-    pat=$(grep -vE '^\s*(#|$)' "$f" | head -1)   # first non-comment line
-    grep -rnE "$pat" "$dir"
-  done
+# List pending stubs for the CHOSEN feature (picked in "Before you start"):
+#   $SENTINEL = the .ptk-scaffold file the user picked
+#   $SENTINEL_DIR = its directory
+SENTINEL=<path-to-chosen-.ptk-scaffold>
+SENTINEL_DIR=$(dirname "$SENTINEL")
+pat=$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)   # first non-comment line is the ERE
+grep -rnE "$pat" "$SENTINEL_DIR"                  # what's pending
 
-# Done? The loop above prints nothing, AND no it.todo/t.Skip markers remain:
-find . -name '.ptk-scaffold' -print0 |
-  while IFS= read -r -d '' f; do
-    grep -rnE "$(grep -vE '^\s*(#|$)' "$f" | head -1)" "$(dirname "$f")"
-  done                       # should print nothing
-grep -rn 'it.todo\|t.Skip' <sentinel-dir>   # should print nothing
+# Done? The scoped grep above prints nothing, AND no it.todo/t.Skip markers remain:
+grep -rnE "$pat" "$SENTINEL_DIR"                  # should print nothing
+grep -rn 'it.todo\|t.Skip' "$SENTINEL_DIR"          # should print nothing
 ```
 
 This uses only pi's built-in `grep` and `find` — no extension required. The two layers of defense are (1) **scope** — grep only under `.ptk-scaffold` sentinel dirs, so stray matches elsewhere in the repo are invisible; (2) **per-tree pattern** — scaffold recorded the exact call-site syntax for this tree's language, so the query matches real stubs and skips the helper definition, imports, and unrelated code.

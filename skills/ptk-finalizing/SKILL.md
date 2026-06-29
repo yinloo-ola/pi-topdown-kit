@@ -9,20 +9,25 @@ Ship the completed work. By this point the stub frontier is empty — for every 
 
 ## Pre-finalization checks
 
+### Pick the feature (if multiple in flight)
+
+If more than one `.ptk-scaffold` sentinel exists, several features are in flight. **Pick one to finalize** — list each sentinel's `# feature:` line and ask the user which to ship. Finalizing one feature removes only that feature's sentinels and stub helper (if it owns them) and archives only that feature's `*-decisions.md` / `*-verification-report.md`. Do not finalize two features in one run.
+
 ### Confirm the frontier is empty
 
 Before archiving, verify the kit's invariant — every stub is filled:
 
 ```
-# For each sentinel, grep its pattern (first non-comment line) under its dir:
-find . -name '.ptk-scaffold' -print0 |
-  while IFS= read -r -d '' f; do
-    grep -rnE "$(grep -vE '^\s*(#|$)' "$f" | head -1)" "$(dirname "$f")"
-  done                       # should print nothing
-grep -rn "it.todo\|t.Skip" .           # should return nothing meaningful (only legitimate skips, if any)
+# For the CHOSEN feature, grep its sentinel's pattern under its dir:
+#   $SENTINEL = the .ptk-scaffold file the user picked
+#   $SENTINEL_DIR = its directory
+SENTINEL=<chosen>.ptk-scaffold
+SENTINEL_DIR=$(dirname "$SENTINEL")
+grep -rnE "$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)" "$SENTINEL_DIR"   # should print nothing
+grep -rn 'it.todo\|t.Skip' "$SENTINEL_DIR"                                  # should return nothing meaningful
 ```
 
-Also check for leftover `.ptk-scaffold` sentinels — each one means a module tree that finalize must close out.
+Also confirm the chosen `$SENTINEL` is present — it's the marker finalize must close out.
 
 If stubs remain, warn:
 
@@ -36,16 +41,19 @@ Wait for the user to confirm before proceeding.
 
 1. **Remove scaffold artifacts** — the `stub()` / `ptkStub()` marker helper and `.ptk-scaffold` sentinels exist only to drive the scaffold→execute loop. Once the frontier is empty they're dead weight and must not ship:
 
-   ```
-   # Remove every sentinel (each marks an active module frontier, now closed)
-   find . -name '.ptk-scaffold' -delete
+```
+   # Remove the CHOSEN feature's sentinels (do NOT delete other features' sentinels)
+   rm -f "$SENTINEL"
+   # If the feature had multiple sentinels under $SENTINEL_DIR, remove those too:
+   find "$SENTINEL_DIR" -name '.ptk-scaffold' -delete
 
-   # Remove the marker helper module(s) scaffold created, e.g.:
-   rm -f src/_ptk/stub.ts      # TS
-   rm -f internal/ptkstub/stub.go  # Go
+   # Remove the marker helper ONLY if no other feature still references it.
+   # Check: any sentinel still references ptk-stub? If none remain, delete the helper.
+   #   TS:    rm -f src/_ptk/stub.ts
+   #   Go:    rm -f internal/ptkstub/stub.go
    ```
 
-Then remove every `import { stub } from ".../stub"` line that now has no target (the sentinel-pattern grep above already confirmed no call sites remain, but imports may linger). Run the test suite + type-check / build to confirm nothing references the removed helper.
+Then remove every `import { stub } from ".../stub"` line in the chosen `$SENTINEL_DIR` that now has no target (the sentinel-pattern grep above already confirmed no call sites remain, but imports may linger). Run the test suite + type-check / build to confirm nothing references the removed helper.
 
    Commit this cleanup separately so the diff is clearly "remove scaffold scaffolding":
 

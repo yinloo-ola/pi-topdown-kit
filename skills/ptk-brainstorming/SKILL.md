@@ -69,4 +69,6 @@ This skill owns the **why / what**. It does not design the skeleton — that is 
 
 ## After the decisions
 
+The decisions doc is now written to `docs/plans/*-decisions.md` but **uncommitted** — this skill is read-only (the guard blocks `git commit` in brainstorm phase). `ptk-scaffold` commits it as its first step, persisting the handoff before any skeleton work begins. If you plan to `/new` before scaffolding, that's safe as long as you don't `git stash` / `git checkout` / `git clean` in between — the file is on disk and scaffold will pick it up and commit it.
+
 Ask: "Ready to scaffold? Run `/skill:ptk-scaffold`"

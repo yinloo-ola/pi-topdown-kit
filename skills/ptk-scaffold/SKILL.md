@@ -14,13 +14,30 @@ This skill absorbs what other kits split into "writing-plans" + "design-review":
 ## Before you start
 
 1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted changes.
-2. **Find the decisions doc** — look for `docs/plans/*-decisions.md`. If none exists, say "No decisions doc found. Run `/skill:ptk-brainstorming` first." and stop. Read it in full.
-3. **Extract the module outline** — the decisions doc's `## Module outline` section lists the modules/layers to create. If it's missing or too vague (just "auth stuff"), go back to the user and ask them to re-run brainstorm with a concrete outline.
-4. **Suggest workspace isolation** — if the user isn't already on a feature branch or worktree, offer:
+
+2. **Detect resume vs fresh start** — the kit's cross-session coherence depends on landing in the right state from artifacts alone. Check, in order:
+
+   - **(a) Resume a paused checkpoint?** If `.ptk-scaffold` sentinels or `stub()` files exist on disk but there is **no `scaffold:` commit in `git log`**, you are resuming a skeleton that was emitted and then paused at `⏸ CHECKPOINT: skeleton`. **Do not re-emit.** Skip straight to step 8 (the checkpoint) and present the existing uncommitted skeleton for review. (This is what makes the checkpoint menu's "resume later with /skill:ptk-scaffold" actually work across `/new`.)
+   - **(b) Re-entering a committed skeleton?** If a `scaffold:` commit already exists in the log, the skeleton is already committed — say "Skeleton already committed for <topic>. Did you mean `/skill:ptk-execute` to fill it, or re-scaffold on top?" and wait for the user.
+   - **(c) Otherwise: fresh scaffold.** Continue to step 3.
+
+3. **Find the decisions doc** — look for `docs/plans/*-decisions.md`. If none exists, say "No decisions doc found. Run `/skill:ptk-brainstorming` first." and stop. Read it in full.
+
+4. **Commit the decisions doc first** — `ptk-brainstorming` is read-only and cannot commit, so the decisions doc is uncommitted on disk. It is the handoff artifact for this phase (module outline, name-collision choice, the why). Persist it **before** emitting any skeleton, so a crash or `/new` after this point can still recover:
+   ```
+   git add docs/plans/*-decisions.md && git commit -m "docs: decisions for <topic>"
+   ```
+   If `git status` shows the decisions doc is already committed (e.g. resuming), skip this step.
+
+5. **Extract the module outline** — the decisions doc's `## Module outline` section lists the modules/layers to create. If it's missing or too vague (just "auth stuff"), go back to the user and ask them to re-run brainstorm with a concrete outline.
+
+6. **Suggest workspace isolation** — if the user isn't already on a feature branch or worktree, offer:
    - **Branch** (smaller skeletons): `git checkout -b <feature-name>`
    - **Worktree** (larger skeletons, keeps main clean): `git worktree add ../<repo>-<feature-name> -b <feature-name>`
 
-   Derive `<feature-name>` from the decisions doc topic. Ask the user which they prefer, then wait for confirmation before proceeding. If worktree was chosen, move the decisions doc into the worktree and hand off to a new session (same pattern as other kits).
+   Derive `<feature-name>` from the decisions doc topic. Ask the user which they prefer, then wait for confirmation before proceeding. If worktree was chosen, move the decisions doc into the worktree, commit it there, and hand off to a new session (same pattern as other kits).
+
+> **Multi-feature repos:** the topic from the decisions doc filename becomes the `feature:` recorded in each sentinel (see step 5 of the Process). That lets `ptk-execute` / `ptk-verify` / `ptk-finalizing` scope to one feature when several are in flight — see those skills.
 
 ## Process
 
@@ -119,15 +136,20 @@ Derive the pattern from the literal stub syntax you just emitted — whatever a 
 | `ptk_stub("auth.signup")` | `ptk_stub\(["']` | Python (both quote styles; collision-renamed) |
 | `(stub "auth.signup")` | `\(stub "` | Clojure/Lisp |
 
-`#`-prefixed lines in the sentinel are comments and ignored by consumers; the first non-comment non-blank line is the pattern. This keeps the sentinel self-documenting:
+`#`-prefixed lines in the sentinel are comments and ignored as patterns. **The first non-`#` non-blank line is the ERE pattern.** Two comment lines are conventional and read by consumers:
+
+- `# feature: <topic>` — the feature this sentinel belongs to (the topic from the decisions doc filename). Lets `ptk-execute` / `ptk-verify` / `ptk-finalizing` scope to one feature when several are in flight.
+- `# language: <lang>` — optional, human-readable hint (e.g. `typescript`, `go`, `haskell`).
 
 ```
 # .ptk-scaffold — written by ptk-scaffold, removed by ptk-finalize.
+# feature: auth
+# language: typescript
 # Frontier pattern (ERE): matches unfilled stub() call sites in this tree.
 stub\("
 ```
 
-Presence of `.ptk-scaffold` means "this tree is an active frontier — search here." Its pattern line says *how* to search. Execute greps each sentinel's pattern under that sentinel's directory.
+Presence of `.ptk-scaffold` means "this tree is an active frontier — search here." Its pattern line says *how* to search. Its `feature:` line says *which feature* it belongs to. Execute greps each sentinel's pattern under that sentinel's directory.
 
 ```
 src/.ptk-scaffold
