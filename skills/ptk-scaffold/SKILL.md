@@ -168,7 +168,7 @@ The tree must be **green**: it compiles, type-checks, and the only test output i
 
 This is the deliberate "review the whole shape" gate. Stop. Do not commit yet.
 
-Run `git diff` (or `git status` + `git diff --cached` if you pre-staged) and present:
+Show the skeleton. Its files are brand-new (untracked), so a plain `git diff` prints nothing — instead either show file contents directly, or stage-then-diff: `git add -N <files>` then `git diff`, or `git add <files>` then `git diff --cached`. Present:
 
 ```
 ⏸ Paused at checkpoint: skeleton

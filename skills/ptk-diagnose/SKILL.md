@@ -1,6 +1,6 @@
 ---
 name: ptk-diagnose
-description: "Disciplined debugging loop for hard bugs and performance regressions. Use when a test fails unexpectedly, a bug is found during execution, or something is broken. Use this skill whenever the user reports a bug, says 'this doesn't work', 'something's wrong', 'help me debug', or when tests fail for unclear reasons. Works at any point in the workflow — brainstorm, execute, or standalone."
+description: "Disciplined debugging loop for hard bugs and performance regressions. Use when a test fails unexpectedly, a bug is found during execution, or something is broken. Use this skill whenever the user reports a bug, says 'this doesn't work', 'something's wrong', 'help me debug', or when tests fail for unclear reasons. Works at any point in the workflow — brainstorm, execute, or standalone — but note: during brainstorm/verify phases the guard still blocks source writes, so a fix discovered then must be applied during execute; only the diagnosis (reproduce/hypothesise/instrument) can run in-place."
 ---
 
 # Diagnose
