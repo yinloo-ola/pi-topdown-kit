@@ -1,6 +1,6 @@
 ---
 name: ptk-execute
-description: "Use this after ptk-scaffold to fill the stub() markers layer by layer. Greps for ptk-stub to find the frontier, fills one stub + its unit test per increment (red -> green), recursively re-stubs when a fill is too complex, and keeps the tree green at every commit. Use when the user says 'execute', 'fill the stubs', 'implement', or after a skeleton has been committed."
+description: "Use this after ptk-scaffold to fill the stub() markers layer by layer. Uses ast_search (or grep fallback) to find stub() call sites — the frontier — then fills one stub + its unit test per increment (red -> green), recursively re-stubs when a fill is too complex, and keeps the tree green at every commit. Use when the user says 'execute', 'fill the stubs', 'implement', or after a skeleton has been committed."
 ---
 
 # Execute
@@ -22,21 +22,31 @@ Fill the stubs the scaffold left behind. **Layer by layer** (top-down), one stub
 
 ## The frontier
 
-The live, drift-free todo list. No progress file — the codebase's own grep-ability tracks progress.
+The live, drift-free todo list. No progress file — the codebase's own searchability tracks progress.
 
+> **Query for call sites, not the error tag.** Stubs are written as `return stub("dotted.path")` (TS) or `Stub("dotted.path")` (Go). The string `ptk-stub` only appears in the helper's `throw`/`panic` message — it's the **runtime diagnostic** you see when an unfilled stub actually executes, NOT the frontier query. Searching for `ptk-stub` finds the 1-line helper definition regardless of how many stubs exist. Search for the **call sites** instead.
+
+```bash
+# Sentinel dirs mark the active frontier:
+find . -name '.ptk-scaffold' -not -path '*/node_modules/*'
+
+# PRIMARY: structural search for stub() call sites (zero false positives —
+# matches call expressions, not the helper definition, not comments).
+#   TS:  ast_search 'stub($ARG)' --path <sentinel-dirs>
+#   Go:  ast_search 'Stub($ARG)' --path <sentinel-dirs>
+ast_search 'stub($ARG)' $(find . -name '.ptk-scaffold' -exec dirname {} \;)
+
+# FALLBACK (if ast_search unavailable): grep the call-site text.
+# 'stub("' is specific enough to skip the helper definition and most comments.
+grep -rn 'stub("' $(find . -name '.ptk-scaffold' -exec dirname {} \;)     # TS
+grep -rn 'Stub("' $(find . -name '.ptk-scaffold' -exec dirname {} \;)   # Go
+
+# Done? No stub() call sites remain AND no it.todo/t.Skip markers:
+ast_search 'stub($ARG)' $(find . -name '.ptk-scaffold' -exec dirname {} \;)  # should print nothing
+grep -rn 'it.todo\|t.Skip' <sentinel-dir>                                    # should print nothing
 ```
-# What's pending? List every unfilled stub, grouped by sentinel dir:
-grep -rn "ptk-stub" $(find . -name '.ptk-scaffold' -exec dirname {} \;)
 
-# Progress count:
-grep -rc "ptk-stub" <sentinel-dir> | awk -F: '{s+=$2} END {print s}'
-
-# Done? Empty under every sentinel AND no it.todo/t.Skip markers remain:
-grep -rn "ptk-stub" $(find . -name '.ptk-scaffold' -exec dirname {} \;)   # should print nothing
-grep -rn "it.todo\|t.Skip" <sentinel-dir>                                  # should print nothing
-```
-
-Prefer `ast_search` for `stub("...")` call nodes when available — structural match, zero false positives (immune to stray "ptk-stub" mentions in comments).
+The runtime error tag `[ptk-stub] <path>` is still useful: when an unfilled stub executes during a test or at runtime, the thrown error names exactly which stub is missing — a focused signal distinct from the frontier listing.
 
 **Recursive spawn:** when you create a new sub-stub during a fill, just write it as another `stub("...")` call with its own doc comment and `it.todo`. It shows up in the next frontier query automatically. No bookkeeping.
 

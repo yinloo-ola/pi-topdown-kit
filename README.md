@@ -86,17 +86,22 @@ export async function signup(input: SignupInput): Promise<User> {
 }
 ```
 
-**The frontier** (what's left to fill) is just grep — no progress file to maintain or drift from:
+**The frontier** (what's left to fill) is a structural search for `stub()` call sites — no progress file to maintain or drift from:
 
-```
-grep -rn "ptk-stub" <sentinel-dirs>    # what's pending
-grep -rc  "ptk-stub" <sentinel-dirs>    # progress count
-grep -rn "ptk-stub" <sentinel-dirs>    # empty → done
+```bash
+# PRIMARY: structural search — matches call expressions, not the helper, not comments
+ast_search 'stub($ARG)' $(find . -name '.ptk-scaffold' -exec dirname {} \;)   # what's pending
+# empty output → done
+
+# FALLBACK (if ast_search unavailable): grep the call-site text
+grep -rn 'stub("' <sentinel-dirs>     # TS
+grep -rn 'Stub("' <sentinel-dirs>     # Go
 ```
 
-Why a symbol, not prose: `grep "not implemented"` collides with stray comments, vendored deps, and unrelated monorepo packages. `stub("...")` is a structural call site — two layers of defense:
-1. **Scope** — grep only under `.ptk-scaffold` sentinel dirs (handles greenfield modules).
-2. **Distinctive marker** — `ptk-stub` handles modify-existing-files cases.
+> **Search for call sites, not the error tag.** The string `ptk-stub` only appears inside the helper's `throw`/`panic` message — it's the **runtime diagnostic** you see when an unfilled stub actually executes, not the frontier query. Searching `ptk-stub` finds the 1-line helper definition no matter how many stubs exist. Search for the `stub("…")` call sites instead. Two layers of defense:
+
+1. **Scope** — search only under `.ptk-scaffold` sentinel dirs (handles greenfield modules).
+2. **Structural match** — `ast_search 'stub($ARG)'` finds call expressions; immune to stray `ptk-stub` mentions in comments and to the helper definition itself.
 
 `.ptk-scaffold` sentinels are written by scaffold, removed by finalize. Committed (never gitignored), so the frontier survives `/new` and resumes cleanly across sessions.
 
@@ -165,7 +170,7 @@ pi install npm:@tianhai/pi-topdown-kit
 
 > /skill:ptk-execute
 
-# (agent greps ptk-stub, fills scheduler/dispatcher first, then queue, then repo,
+# (agent ast_searches stub() call sites, fills scheduler/dispatcher first, then queue, then repo,
 #  recursively re-stubbing anything too complex. tree green at every commit)
 
 > /skill:ptk-verify

@@ -5,7 +5,7 @@ description: "Use this after the stub frontier is empty (all stubs filled) to cl
 
 # Finalizing
 
-Ship the completed work. By this point the stub frontier is empty — `grep "ptk-stub"` under every `.ptk-scaffold` sentinel dir returns nothing, and no `it.todo`/`t.Skip` markers remain.
+Ship the completed work. By this point the stub frontier is empty — `ast_search 'stub($ARG)'` under every `.ptk-scaffold` sentinel dir returns nothing, and no `it.todo`/`t.Skip` markers remain.
 
 ## Pre-finalization checks
 
@@ -14,7 +14,7 @@ Ship the completed work. By this point the stub frontier is empty — `grep "ptk
 Before archiving, verify the kit's invariant — every stub is filled:
 
 ```
-grep -rn "ptk-stub" .                  # should return nothing (excluding node_modules, automatically respected if you grep sentinel dirs)
+ast_search 'stub($ARG)' $(find . -name '.ptk-scaffold' -exec dirname {} \;)   # should return nothing
 grep -rn "it.todo\|t.Skip" .           # should return nothing meaningful (only legitimate skips, if any)
 ```
 
@@ -41,7 +41,7 @@ Wait for the user to confirm before proceeding.
    rm -f internal/ptkstub/stub.go  # Go
    ```
 
-   Then remove every `import { stub } from ".../stub"` line that now has no target (the grep for `ptk-stub` already confirmed no call sites remain, but imports may linger). Run the test suite + type-check / build to confirm nothing references the removed helper.
+Then remove every `import { stub } from ".../stub"` line that now has no target (the `ast_search 'stub($ARG)'` query above already confirmed no call sites remain, but imports may linger). Run the test suite + type-check / build to confirm nothing references the removed helper.
 
    Commit this cleanup separately so the diff is clearly "remove scaffold scaffolding":
 

@@ -13,7 +13,7 @@ The core insight: code that passes tests is not code that's ready. Working code 
 
 ## Process
 
-1. **Check what's been done** — run `git log --oneline` and `git diff --stat` to understand the scope of recent changes. Confirm the frontier is empty: `grep "ptk-stub"` under `.ptk-scaffold` sentinel dirs returns nothing (all stubs filled). If stubs remain, say "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop.
+1. **Check what's been done** — run `git log --oneline` and `git diff --stat` to understand the scope of recent changes. Confirm the frontier is empty: `ast_search 'stub($ARG)'` under `.ptk-scaffold` sentinel dirs returns nothing (all stubs filled). If stubs remain, say "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop.
 
 2. **Identify the project's layers** — before reviewing, map the codebase's architecture. The skeleton's module outline (from `docs/plans/*-decisions.md`) is the starting map, but verify it against what was actually built. Note the patterns: handlers/routes → services → repositories → models. This map drives the traceability pass.
 
