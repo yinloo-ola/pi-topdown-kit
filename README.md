@@ -39,14 +39,16 @@ Enforces phase-appropriate tool access — hard blocks, not guidelines:
 
 The agent can discuss design during brainstorm, but physically cannot modify source files until scaffold.
 
-### 🧠 6 Workflow Skills
+### 🧠 7 Workflow Skills
 
 ```
-brainstorm → scaffold → execute → [verify?] → finalize
- (why/what)   (shape)    (behavior)  (review)    (ship)
-                ↕
-             diagnose (anytime)
+brainstorm ─┬→ scaffold → execute → [verify?] → finalize
+ (why/what) │   (shape)    (behavior)  (review)    (ship)
+            ├→ modify (change existing behavior: characterize → change → repin)
+            └→ diagnose (anytime)
 ```
+
+Brainstorm is the **triage point**: it routes new shape to `scaffold`, behavior changes to `modify`, and broken code to `diagnose`.
 
 | Phase | Trigger | What Happens |
 |-------|---------|--------------|
@@ -55,7 +57,8 @@ brainstorm → scaffold → execute → [verify?] → finalize
 | **Execute** | `/skill:ptk-execute` | Grep the frontier → fill one stub + its unit test per increment (red→green). Recursively re-stubs when a fill is too complex. Tree stays green at every commit. |
 | **Verify** | `/skill:ptk-verify` | Three expert review passes (security, optimization, traceability) on the filled code. |
 | **Finalize** | `/skill:ptk-finalizing` | Remove `.ptk-scaffold` sentinels + `stub()` helper, archive decisions doc, update README/CHANGELOG, create PR. |
-| **Diagnose** | `/skill:ptk-diagnose` | 6-phase debugging loop: reproduce → hypothesize → instrument → fix. Utility skill, any time. |
+| **Modify** | `/skill:ptk-modify` | Change behavior of existing working code: pin current behavior with characterization tests (green), make the change (intentional red), repin to the new contract (green). **B1 — localized changes (1–3 functions) only.** |
+| **Diagnose** | `/skill:ptk-diagnose` | 6-phase debugging loop: reproduce → hypothesise → instrument → fix. Utility skill, any time. |
 
 There is **no `writing-plans` skill**. The skeleton *is* the plan — real, compilable code, not markdown prose.
 
@@ -205,10 +208,12 @@ pi-topdown-kit/
 │   ├── ptk-execute/SKILL.md         # Fill stubs layer by layer
 │   ├── ptk-verify/SKILL.md          # Security/optimization/traceability
 │   ├── ptk-finalizing/SKILL.md      # Strip sentinels + helper, archive, ship
+│   ├── ptk-modify/SKILL.md          # Change existing behavior (characterize→change→repin)
 │   └── ptk-diagnose/SKILL.md        # 6-phase debug loop
 ├── tests/
 │   └── workflow-guard.test.ts
 ├── docs/
+│   ├── lessons.md                   # Generic rules for future sessions
 │   └── plans/
 │       ├── PUBLISH.md               # Publishing runbook
 │       └── completed/               # Archived decision docs
