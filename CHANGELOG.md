@@ -1,4 +1,11 @@
 # Changelog
+## 0.3.0
+
+- **New: replace a whole live subsystem.** `ptk-finalizing` gains a Swap step — repoint callers from old X to new X', suite goes green, delete old. Brainstorm's triage now routes subsystem replacements: scaffold the replacement, then finalize swaps it in. Big-bang cutover is documented; large or contract-changing swaps point at incremental cutover via `ptk-modify`.
+- **Language-agnostic frontier gate.** Execute and finalize no longer grep for `it.todo`/`t.Skip` to confirm the frontier is empty — the stub-call-site grep is the complete signal (a filled stub converts its own placeholder in the same increment; a skipped stub keeps both call site and placeholder). The gate now works unchanged across JS/Go/Python/etc.
+- **`ptk-diagnose` names its fix routing.** Phase 6 now states where a discovered fix goes: existing working code → `/skill:ptk-modify`; an unfilled stub → `/skill:ptk-execute`. Closes the kit's weakest handoff seam.
+- **Skills trimmed for clarity (~130 lines net).** Every `description` trigger preserved byte-for-byte; no behavior change. Highlights: scaffold's 4-case resume prose → a decision table; verify's report template defined once instead of thrice; finalize's parent-branch detection shell-golf → just ask the user.
+- **Killed undefined jargon.** The internal "B1/B2" scope labels (used 10×, never defined) → plain phrases ("localized 1–3 functions" / "replacing a whole live subsystem").
 
 ## 0.2.0
 

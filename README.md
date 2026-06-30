@@ -48,7 +48,7 @@ brainstorm ─┬→ scaffold → execute → [verify?] → finalize
             └→ diagnose (anytime)
 ```
 
-Brainstorm is the **triage point**: it routes new shape to `scaffold`, behavior changes to `modify`, and broken code to `diagnose`.
+Brainstorm is the **triage point**: it routes new shape to `scaffold`, behavior changes to `modify`, broken code to `diagnose`, and whole-subsystem replacements to `scaffold` (the old subsystem is removed during finalize's swap step).
 
 | Phase | Trigger | What Happens |
 |-------|---------|--------------|
@@ -56,7 +56,7 @@ Brainstorm is the **triage point**: it routes new shape to `scaffold`, behavior 
 | **Scaffold** | `/skill:ptk-scaffold` | Read decisions doc → emit the layered skeleton: full types, `stub()` stubs, `it.todo` tests, `.ptk-scaffold` sentinels. Runs a production-hazard check. **Pauses at `CHECKPOINT: skeleton`** for you to review the whole shape. |
 | **Execute** | `/skill:ptk-execute` | Grep the frontier → fill one stub + its unit test per increment (red→green). Recursively re-stubs when a fill is too complex. Tree stays green at every commit. |
 | **Verify** | `/skill:ptk-verify` | Three expert review passes (security, optimization, traceability) on the filled code. |
-| **Finalize** | `/skill:ptk-finalizing` | Remove `.ptk-scaffold` sentinels + `stub()` helper, archive decisions doc, update README/CHANGELOG, create PR. |
+| **Finalize** | `/skill:ptk-finalizing` | Remove `.ptk-scaffold` sentinels + `stub()` helper, archive decisions doc, update README/CHANGELOG, create PR. Includes a swap step for replacing a whole live subsystem. |
 | **Modify** | `/skill:ptk-modify` | Change behavior of existing working code: pin current behavior with characterization tests (green), make the change (intentional red), repin to the new contract (green). **Localized changes (1–3 functions) only.** |
 | **Diagnose** | `/skill:ptk-diagnose` | 6-phase debugging discipline: build feedback loop → reproduce → hypothesise → instrument → fix → cleanup. Utility skill, any time. |
 
