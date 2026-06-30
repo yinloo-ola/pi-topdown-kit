@@ -100,13 +100,34 @@ The phase-2 red is **never committed.** It lives only in the working tree betwee
 
 ### If the change is too big
 
-<!-- spec: Recursive splitting (mirrors ptk-execute's recursive re-stub, but for behavior changes). If the change is too big — touches more than ~3 functions, spans responsibilities, or produces a large/confused red set you cannot cleanly classify into intended vs regression — do NOT force it. Split: pick one sub-behavior, run the full characterize→change→repin loop on JUST that (commit green), then move to the next. The red set being un-classifiable is the signal that the change is not B1 — either split it, or re-brainstorm (it may be B2). -->
-<!-- ptk:stub "modify.too-big" -->
+If the change is too big — touches more than ~3 functions, spans responsibilities, or produces a red set you **cannot cleanly classify** into intended vs regression — **do not force it.** This mirrors `ptk-execute`'s recursive re-stub, but for behavior changes.
+
+**Split instead:** pick one sub-behavior, run the full **characterize → change → repin** loop on *just that* (commit green), then move to the next sub-behavior. Repeat.
+
+The red set being un-classifiable is itself the signal — it means the change is not B1. Either:
+- **split** it into independent sub-changes you can loop on one at a time, or
+- **re-brainstorm** — it may be B2 (replacing a subsystem), which needs scaffold-and-swap, not modify.
+
+Forcing a sprawling change through one loop iteration produces a confused red set that hides regressions, defeating the whole point of the characterization.
 
 ## After all changes
 
-<!-- spec: When the user's stated changes are all done (no more functions to modify). Summarize: N functions changed, M characterization pins added/repinned. Suggest /skill:ptk-verify to review the behavior change (security/optimization/traceability against the new contract), same as after ptk-execute. If the change touched the kit's own skills/guard, note that the guard contract tests should be re-run. -->
-<!-- ptk:stub "modify.after" -->
+When the user's stated changes are all done (no more functions to modify):
+
+```
+✅ All changes complete.
+
+| Function | Behavior changed | Pins added/repinned |
+|----------|------------------|---------------------|
+| <fn>     | <old> → <new>    | <N>                 |
+| ...      | ...              | ...                 |
+```
+
+Next:
+- **Review the change:** `/skill:ptk-verify` — security, optimization, and traceability passes against the new contract (same as after `ptk-execute`).
+- **Ship:** there is no separate finalize for `ptk-modify` (no sentinels or marker helper to strip). The characterization tests you added are the permanent artifact — they stay and guard the new behavior.
+
+> **If this change touched the kit's own skills or guard** (a meta-change to pi-topdown-kit), re-run the guard contract tests (`npm test`) — the guard's phase logic is the trust boundary.
 
 ## Principles
 
