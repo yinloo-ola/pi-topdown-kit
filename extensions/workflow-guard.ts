@@ -10,7 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
  *
  * Phase model (scaffold-first kit):
  * - Blocking (only docs/plans/ writable): ptk-brainstorming → brainstorm, ptk-verify → verify
- * - Unlocked (full access, they write source): ptk-scaffold, ptk-execute, ptk-finalizing → null
+ * - Unlocked (full access, they write source): ptk-scaffold, ptk-execute, ptk-finalizing, ptk-modify → null
  * - ptk-diagnose is unrestricted and not phase-tracked.
  *
  * Unlike pi-workflow-kit, there is NO "plan" phase — the skeleton replaces the plan,
@@ -167,7 +167,7 @@ const UNLOCKING_SKILLS = ["ptk-scaffold", "ptk-execute", "ptk-finalizing", "ptk-
  *
  * - /skill:ptk-brainstorming → "brainstorm" (blocking)
  * - /skill:ptk-verify → "verify" (blocking)
- * - /skill:ptk-scaffold | ptk-execute | ptk-finalizing → null (unlocked)
+ * - /skill:ptk-scaffold | ptk-execute | ptk-finalizing | ptk-modify → null (unlocked)
  * - anything else → currentPhase unchanged
  */
 export function phaseForInput(text: string, currentPhase: Phase): Phase {

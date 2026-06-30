@@ -12,7 +12,7 @@ Fill the stubs the scaffold left behind. **Layer by layer** (top-down), one stub
 ## Before you start
 
 1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted changes.
-2. **Find the skeleton** — there must be a committed skeleton (last commit message starts with `scaffold:`) containing `stub()` call sites and `.ptk-scaffold` sentinels. If none exists, say "No skeleton found. Run `/skill:ptk-scaffold` first." and stop.
+2. **Find the skeleton** — there must be a committed skeleton: a `scaffold:` commit exists in history **and** `.ptk-scaffold` sentinels with `stub()` call sites are present on disk. (On resume after some fills, the last commit may be `feat: fill …`, not `scaffold:` — the sentinel + stub call sites on disk are the real signal, not the most-recent commit message, which scrolls off `git log -5` after ~5 fills.) If no sentinel or stub call sites exist, say "No skeleton found. Run `/skill:ptk-scaffold` first." and stop.
 3. **Read the decisions doc** — `docs/plans/*-decisions.md` — for context on what the feature is meant to do. **Read `docs/lessons.md`** if it exists — follow every rule while working.
 4. **Find the sentinel dirs and pick the feature** — `.ptk-scaffold` files mark the active frontier. Find every one under the repo (excluding `node_modules`). Use whatever file-search tool you have — the builtin `find`, `fffind`, an extension, or a simple `ls`-glob; the goal is the list of sentinel paths.
 

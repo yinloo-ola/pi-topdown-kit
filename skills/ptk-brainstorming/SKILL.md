@@ -78,7 +78,7 @@ You've established *what* the change is. Pick the next skill by *what kind* of c
 | The change… | Next skill |
 |---|---|
 | Creates new modules/files, or adds new code into existing ones (new shape) | `/skill:ptk-scaffold` |
-| Changes the behavior of existing working code (localized — one or a few functions) | `/skill:ptk-modify` |
+| Changes the behavior of existing working code (localized — 1–3 functions) | `/skill:ptk-modify` |
 | Something is broken and needs debugging | `/skill:ptk-diagnose` |
 
 If you're unsure between scaffold and modify: does the change create a new "place" (new code to write), or change what an existing "place" does? New code → scaffold; changing existing behavior → modify.
