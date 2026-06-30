@@ -131,10 +131,17 @@ Next:
 
 ## Principles
 
-<!-- spec: The discipline's rules, ptk-modify flavor. (1) Pin FIRST — never edit working code without a green characterization of what it currently does; the red set is meaningless without it. (2) Green at every commit — the only red is the transient, checkpoint-gated phase-2 state. (3) Intended-red vs regression — the core judgment; a regression is fixed by changing the code, never by editing the test. (4) The characterization test IS the contract — after repin it documents the new behavior and guards the next modification. (5) Characterization asserts what the code DOES, not what it SHOULD — resist writing "good" tests in phase 1; capture actual behavior, even ugly behavior. -->
-<!-- ptk:stub "modify.principles" -->
+- **Pin FIRST.** Never edit working code without a green characterization of what it currently does. The red set is meaningless without it — you can't tell intended from regression if you never pinned the starting state.
+- **Green at every commit.** The only red is the transient, checkpoint-gated phase-2 state. It is never committed.
+- **Intended-red vs regression is the core judgment.** A regression is fixed by changing the code, **never by editing the test**. Editing a test to make a regression pass is the failure mode this skill exists to prevent.
+- **The characterization test IS the contract.** After repin it documents the new behavior and stays in the codebase, guarding the next modification to this same code.
+- **Characterize what the code DOES, not what it SHOULD.** In phase 1, resist writing "good" tests — capture actual behavior, even ugly behavior. The repin phase is where the test becomes "good".
+- **Scope is B1.** One to three known functions. If it's bigger, split or re-brainstorm — don't force a sprawling change through one loop iteration.
 
 ## Known limitation
 
-<!-- spec: Honest disclosure of the guard limitation. ptk-modify runs UNLOCKED (phase=null — it writes source by design, like scaffold/execute/finalize). Therefore the guard CANNOT hard-enforce "characterize before you change" the way brainstorm hard-blocks source writes. The pin-first ordering is carried by THIS skill's checkpoint (the intentional-red pause) instead of by a hard block. This is weaker than brainstorm's enforcement and is accepted — the alternative (a separate blocking "characterize" phase + a "only *.test.* writable" rule) is over-build for B1's small scope. A user who skips phase 1 and edits directly has bypassed the skill, not the guard. -->
-<!-- ptk:stub "modify.known-limitation" -->
+`ptk-modify` runs **unlocked** (`phase=null` — it writes source by design, like `ptk-scaffold` / `ptk-execute` / `ptk-finalizing`). Therefore the guard **cannot hard-enforce "characterize before you change"** the way `ptk-brainstorming` hard-blocks source writes.
+
+The pin-first ordering is carried by **this skill's checkpoint** (the intentional-red pause) instead of by a hard block. This is weaker than brainstorm's enforcement and is **accepted** — the alternative (a separate blocking "characterize" phase + a "only `*.test.*` writable" rule) is over-build for B1's small scope, and the guard cannot cheaply express "only test files writable" anyway.
+
+A user who skips phase 1 and edits working code directly has **bypassed the skill, not the guard.** The discipline is instructional; the safety net is the checkpoint and the green-commit invariant.
