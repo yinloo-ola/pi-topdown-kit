@@ -23,7 +23,13 @@ The core insight: code that passes tests is not code that's ready. Working code 
 
 4. **Compile the report** — write all findings to `docs/plans/*-verification-report.md`. Present the report to the user and wait for feedback.
 
-5. **Offer remediation** — after the report, ask: "Want me to fix these? Re-run `/skill:ptk-scaffold` if the skeleton itself is wrong, or `/skill:ptk-execute` to re-fill specific stubs with the fixes."
+5. **Offer remediation** — route each finding to the right phase by its *nature*, not a blanket default. Present the routing so the user knows which skill applies each fix:
+
+   - **Behavioral findings** (security holes, traceability seam mismatches, dead-code removal, over-engineering simplification — any fix to existing working code) → `/skill:ptk-modify`. These are localized changes to existing behavior: characterize the current behavior (green), make the fix (intentional red), repin (green). This is `ptk-modify`'s exact purpose, and ptk-modify is the right answer to its own verify findings.
+   - **Documentation / polish** (README/CHANGELOG drift, JSDoc comments, project-tree updates) → fold into `/skill:ptk-finalizing` — it owns "update README/CHANGELOG/inline docs."
+   - **The skeleton itself is wrong** (architecture off, wrong module boundaries, missing layer) → re-run `/skill:ptk-scaffold` for that piece.
+
+   Do NOT default to `/skill:ptk-execute` — after execute finishes, the `stub()` frontier is empty and there is nothing to "re-fill." A verify finding is a problem in already-filled, working code, not an unfilled stub. Routing it to execute would require reverting a fill back to `stub()` first, and most findings (comment fixes, renames, doc drift) aren't stub-shaped anyway. Reserve execute for genuinely unfinished stubs.
 
 ## Pass 1 — Security Review 🔴
 
