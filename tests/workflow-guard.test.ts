@@ -293,6 +293,11 @@ describe("phaseForInput", () => {
     expect(phaseForInput("/skill:ptk-finalizing", "brainstorm")).toBe(null);
   });
 
+  it("unlocks on /skill:ptk-modify", () => {
+    expect(phaseForInput("/skill:ptk-modify", "brainstorm")).toBe(null);
+    expect(phaseForInput("/skill:ptk-modify", "verify")).toBe(null);
+  });
+
   it("unlocks even with trailing args", () => {
     expect(phaseForInput("/skill:ptk-scaffold go", "brainstorm")).toBe(null);
     expect(phaseForInput("/skill:ptk-execute the plan", "verify")).toBe(null);

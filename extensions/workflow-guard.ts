@@ -158,7 +158,9 @@ const SKILL_TO_PHASE: Record<string, Phase> = {
 };
 
 // Skills that unlock all access (they write source by design).
-const UNLOCKING_SKILLS = ["ptk-scaffold", "ptk-execute", "ptk-finalizing"];
+// ptk-modify writes source by design (it edits existing working code), so it is
+// unlocked like scaffold/execute/finalize — NOT a blocking phase.
+const UNLOCKING_SKILLS = ["ptk-scaffold", "ptk-execute", "ptk-finalizing", "ptk-modify"];
 
 /** Determine the phase resulting from a user input line.
  * Extracted from the event handler so it can be unit-tested directly.

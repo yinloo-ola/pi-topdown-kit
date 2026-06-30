@@ -69,6 +69,18 @@ This skill owns the **why / what**. It does not design the skeleton — that is 
 
 ## After the decisions
 
-The decisions doc is now written to `docs/plans/*-decisions.md` but **uncommitted** — this skill is read-only (the guard blocks `git commit` in brainstorm phase). `ptk-scaffold` commits it as its first step, persisting the handoff before any skeleton work begins. If you plan to `/new` before scaffolding, that's safe as long as you don't `git stash` / `git checkout` / `git clean` in between — the file is on disk and scaffold will pick it up and commit it.
+The decisions doc is now written to `docs/plans/*-decisions.md` but **uncommitted** — this skill is read-only (the guard blocks `git commit` in brainstorm phase). The skill you pick next commits it as its first step, persisting the handoff before any source changes. If you plan to `/new` before continuing, that's safe as long as you don't `git stash` / `git checkout` / `git clean` in between — the file is on disk and the next skill will pick it up and commit it.
 
-Ask: "Ready to scaffold? Run `/skill:ptk-scaffold`"
+## Next step — triage by the nature of the change
+
+You've established *what* the change is. Pick the next skill by *what kind* of change it is:
+
+| The change… | Next skill |
+|---|---|
+| Creates new modules/files, or adds new code into existing ones (new shape) | `/skill:ptk-scaffold` |
+| Changes the behavior of existing working code (localized — one or a few functions) | `/skill:ptk-modify` |
+| Something is broken and needs debugging | `/skill:ptk-diagnose` |
+
+If you're unsure between scaffold and modify: does the change create a new "place" (new code to write), or change what an existing "place" does? New code → scaffold; changing existing behavior → modify.
+
+Ask: "Which next? `/skill:ptk-scaffold` (new shape), `/skill:ptk-modify` (change behavior), or `/skill:ptk-diagnose` (it's broken)?"

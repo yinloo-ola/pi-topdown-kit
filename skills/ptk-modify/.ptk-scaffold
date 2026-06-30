@@ -1,0 +1,7 @@
+# .ptk-scaffold — written by ptk-scaffold, removed by ptk-finalize.
+# feature: ptk-modify
+# language: markdown
+# Frontier pattern (ERE): matches unfilled ptk:stub markers in this skill doc.
+# Markdown has no stub() function — the marker is an HTML comment.
+# Each section's body prose is the stub; ptk-execute fills it and removes the marker.
+<!-- ptk:stub
