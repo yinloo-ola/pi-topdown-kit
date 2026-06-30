@@ -35,28 +35,68 @@ The invariant: **green at every commit.** The only red is the transient, uncommi
 
 ### 1. Characterize — pin current behavior
 
-<!-- spec: Phase 1. Write characterization tests capturing CURRENT behavior of the functions you are about to change. They MUST pass against unmodified code (run them, confirm green) — if one fails before the change, either the code is already broken (diagnose first) or the test is wrong. Cover: the exact behavior being changed, PLUS adjacent/branching behavior that could regress (other code paths in the same function, callers' assumptions). External deps must be mocked/deterministic (no real DB/network/clock — same sandboxing discipline as ptk-execute). Commit green: "test: characterize <fn> current behavior". Note: these tests assert what the code DOES today, not what it SHOULD do — that is the point. -->
-<!-- ptk:stub "modify.characterize" -->
+Write tests that capture **what the code does today**, against the unmodified functions. This is the safety net — if a test fails *here*, the code was already broken (go to `/skill:ptk-diagnose`) or the test is wrong. Fix before proceeding.
+
+- **Run them green on the unchanged code.** A characterization test that doesn't pass before the change is useless — it tells you nothing about regressions. Confirm green first.
+- **Cover the behavior you're changing** AND the behavior you're **not** — other code paths in the same function, edge cases, and caller assumptions. Adjacent behavior is where silent regressions hide; pin it now.
+- **Mock external dependencies** — no real DB, network, filesystem, or wall-clock. Same sandboxing discipline as `ptk-execute`: inject fakes, set `NODE_ENV=test`, deterministic seeds. A flaky characterization test erodes the whole loop.
+- **Assert what the code DOES, not what it SHOULD.** Resist writing "good" tests. If the current behavior is ugly (returns `null` on error, mutates input, off-by-one), pin the ugly behavior — that's exactly what a regression would break. The repin phase will rewrite these to the new contract.
+
+Commit green: `test: characterize <fn> current behavior`.
 
 ### 2. Change — make the edit
 
-<!-- spec: Phase 2. Make the change (edit the function body / signature). Run the characterization tests. Classify every red test: INTENDED-red = the behavior you deliberately changed (expected, will be repinned in phase 3); REGRESSION-red = an unexpected break (a test for behavior you did NOT intend to change). Do NOT commit. If ZERO tests went red, you either changed nothing observable (consider whether the change is real) or the characterization was incomplete (go back to phase 1 and pin more before proceeding). The red set is the signal — it is exactly the behavioral delta of your change. -->
-<!-- ptk:stub "modify.change" -->
+Make the edit — the new behavior, the signature change, the fix. Then run the characterization tests. **Do not commit.**
+
+- **Classify every red** as one of:
+  - **Intended-red** — the test pinned old behavior you deliberately changed. Expected. It gets repinned in phase 3.
+  - **Regression-red** — the test pinned behavior you did **not** mean to touch. Unexpected. This is what the characterization was for.
+- **The red set is the behavioral delta.** If **zero** tests went red, something is wrong: either the change isn't observable (is it real?), or the characterization in phase 1 was incomplete — go back and pin more before proceeding. A change that breaks nothing it pinned is a change you can't trust.
+- A green run here (no reds at all) is suspicious, not reassuring.
 
 ### ⏸ CHECKPOINT: intentional red
 
-<!-- spec: The checkpoint gate. Pause (do not commit). Present: the diff of the change, the list of red tests split into INTENDED vs REGRESSION, and for each intended-red a one-line note of the new contract it will be repinned to. Ask the user to approve. A regression-red must be resolved by rolling back part of the change (or narrowing it), never by editing the test to silence it. This is the dangerous moment — editing working code — so it is the one hard pause in the skill. -->
-<!-- ptk:stub "modify.checkpoint-intentional-red" -->
+This is the one hard pause in `ptk-modify` — the moment working code has been edited and is sitting red. Stop. Do not commit. Present:
+
+```
+⏸ Paused at checkpoint: intentional red
+
+**Change:** <one-line summary of the new behavior>
+**Diff:** [paste the change diff]
+
+**Red tests:**
+  INTENDED (will repin to new contract):
+    - <test name> → <new expected behavior>
+  REGRESSION (unexpected — must resolve before proceeding):
+    - <test name> — <what broke>
+
+What would you like to do?
+- **approve** — repin the intended-reds, then commit
+- **narrow** — roll back part of the change to eliminate regressions, retry
+- **revert** — undo the change entirely
+- **stop** — pause here
+```
+
+A regression-red is resolved by **changing the code** (narrow or roll back the change), **never by editing the test** to silence it. Editing a test to turn a regression green is exactly the failure mode this skill exists to prevent.
 
 ### 3. Repin — update the contract
 
-<!-- spec: Phase 3. For each INTENDED-red test, rewrite its expectation to the NEW contract (the one-line note from the checkpoint). Do NOT touch regression-red tests — those mean the change is wrong; if any remain, go back to phase 2 and narrow/roll back the change. Run the full affected suite → must be green. Commit: "feat: change <fn> to <new behavior> (<N> pins repinned)". The characterization tests now encode the NEW contract and protect future modifications to this same code. -->
-<!-- ptk:stub "modify.repin" -->
+For each **intended-red** test, rewrite its expectation to the **new contract** (the one-line note from the checkpoint). The test now asserts the new behavior.
+
+- **Do not touch regression-red tests.** If any remain, the change is wrong — go back to phase 2 and narrow or roll back. A regression-red is never repinned; it's either eliminated by fixing the code or it blocks the commit.
+- Run the **full affected suite** → must be green. Not just the repinned tests — everything, to catch second-order effects.
+- The characterization tests now encode the **new** contract and stay in the codebase, protecting the next modification to this same code.
+
+Commit: `feat: change <fn> to <new behavior> (<N> pins repinned)`.
 
 ### Commit
 
-<!-- spec: One commit per change increment, always green (either phase-1 characterize-green or phase-3 repin-green; phase-2 red is never committed). Commit messages distinguish characterization ("test: characterize ...") from the behavior change ("feat: change ..."). Small, reviewable commits — same discipline as ptk-execute. -->
-<!-- ptk:stub "modify.commit" -->
+One commit per change increment, and **every commit is green.** There are exactly two legal commit states:
+
+- **After characterize** (phase 1) — green, all pins passing on old code. Message: `test: characterize <fn> current behavior`.
+- **After repin** (phase 3) — green, repinned pins passing on new code. Message: `feat: change <fn> to <new behavior> (<N> pins repinned)`.
+
+The phase-2 red is **never committed.** It lives only in the working tree between the checkpoint and the repin. Small, reviewable commits — same discipline as `ptk-execute`.
 
 ### If the change is too big
 
