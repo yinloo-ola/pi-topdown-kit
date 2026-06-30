@@ -2,23 +2,33 @@
 
 > Scaffold-first, top-down layered workflow for AI coding agents. **The skeleton IS the plan.**
 
-[pi](https://github.com/badlogic/pi-mono) package. Zero configuration.
+AI coding agents jump to code too fast. The shape of the system emerges by accident — over-engineered, misaligned, reviewed too late (if at all). **pi-topdown-kit** fixes that by forcing a **scaffold-first** workflow: before writing any behavior, the agent produces a reviewable skeleton of the whole system — real, compilable code, with `stub()` markers everywhere. You review the entire shape as a diff. Only then does it fill stubs, layer by layer.
 
-AI coding agents jump to code too fast and produce over-engineered or misaligned systems. **pi-topdown-kit** solves this by forcing a **scaffold-first** workflow: the agent produces a reviewable skeleton of the entire system — real code, compilable, with `stub()` markers everywhere — *before* it writes any behavior. You review the whole shape as a diff. Only then does it fill stubs, layer by layer.
+**Best for:** new subsystems where you want the architecture right *before* logic lands. ([Not sure? Compare it to the sibling `pwk-` kit.](#vs-pi-workflow-kit-pwk-))
 
-This is the classical discipline of **stepwise refinement** (Wirth, 1971) and **"programming by wishful thinking"** (SICP), driven by a cognitive-load argument: expert programmers read code top-down by *chunking* familiar lines into high-level concepts. Layered, top-down production matches that mental model — the agent produces code shaped the way you read it.
+> This is the classical discipline of **stepwise refinement** (Wirth, 1971) and **"programming by wishful thinking"** (SICP), driven by a cognitive-load argument: experts read code top-down by *chunking* familiar lines into high-level concepts. Top-down production matches that mental model — the agent writes code shaped the way you read it.
+
+---
+
+## Why?
+
+- **AI agents skip design.** Left unchecked, they jump to code and the shape emerges accidentally. This forces a think-shape-first workflow.
+- **The skeleton is reviewable.** You read the whole system's shape — names, layers, boundaries — before any logic distracts you. Mistakes are one-line stub edits, cheap.
+- **Progress can't drift.** The `stub()` frontier is grep. No status file to forget to update, no rows to go stale. The codebase's own grep-ability tracks where you are.
+- **You stay in control.** Checkpoint gates at the skeleton review and at hazard stubs mean you approve the shape and the risky bits before they're committed.
+- **Enforced, not suggested.** Hard blocks mean the agent can't accidentally ignore the rules.
 
 ---
 
 ## Install
 
+Requires [pi](https://github.com/badlogic/pi-mono), an AI coding agent harness.
+
 ```bash
 pi install npm:@tianhai/pi-topdown-kit
 ```
 
-No setup needed — skills and guard activate automatically.
-
-**Try before committing:**
+No setup needed — skills and guard activate automatically. **Try before committing:**
 
 ```bash
 pi -e npm:@tianhai/pi-topdown-kit
@@ -100,82 +110,15 @@ pi install npm:@tianhai/pi-topdown-kit
 
 ---
 
-## The Workflow in Detail
+## How It Works
 
-### Phase Control
+Three ideas do the work:
 
-You control each phase — the agent never advances on its own:
+1. **Shape before behavior.** Scaffold emits the whole skeleton as `stub()` placeholders — it compiles, tests are `it.todo` (skipped, not failing), but nothing runs. You review the *map* before any *territory* is written.
+2. **Drift-free progress.** What's left to fill (the "frontier") is found by grepping `stub()` call sites — no progress file to forget to update. The codebase's own searchability tracks where you are.
+3. **Green at every commit.** Filled stubs have passing tests; unfilled stubs skip. The tree compiles throughout, so you can stop, `/new`, and resume any time.
 
-```
-/skill:ptk-brainstorming   → discuss and decide      (writes only docs/plans/)
-/skill:ptk-scaffold         → emit the skeleton       (writes source), then pause for review
-/skill:ptk-execute          → fill the stubs          layer by layer
-/skill:ptk-verify           → review the filled code  (3 expert passes)
-/skill:ptk-finalizing       → ship it                 (clean, archive, PR)
-```
-
-### The Marker Protocol — drift-free progress
-
-This is the kit's core mechanism. Every scaffolded stub calls a marker helper:
-
-```ts
-// emitted once by scaffold, e.g. src/_ptk/stub.ts
-export function stub(path: string): never {
-  throw new Error(`[ptk-stub] ${path}`);
-}
-
-// every stub:
-/** Registers a user. Returns User. Throws DuplicateEmail on conflict. */
-export async function signup(input: SignupInput): Promise<User> {
-  return stub("auth.service.signup");
-}
-```
-
-**The frontier** (what's left to fill) is found by grepping `stub()` call sites — no progress file to maintain or drift from. Each `.ptk-scaffold` sentinel's first non-comment line is the ERE pattern for its tree's stub call sites:
-
-```bash
-# Read the pattern from each sentinel, grep under its directory
-pat=$(grep -vE '^\s*(#|$)' "$SENTINEL" | head -1)
-grep -rnE "$pat" "$SENTINEL_DIR"   # empty output → done
-```
-
-> **Search for call sites, not the error tag.** The string `ptk-stub` only appears in the helper's `throw` — the **runtime diagnostic** when an unfilled stub executes. Searching `ptk-stub` finds the 1-line helper definition regardless of how many stubs exist. Search for the `stub("…")` call sites instead.
-
-> **The frontier pattern is language-specific.** Scaffold derives it from the literal stub syntax it emits and writes it into each sentinel. Execute/verify/finalize read it from there — no hardcoded patterns.
-
-Two layers of defense:
-1. **Scope** — grep only under sentinel dirs, so stray matches elsewhere are invisible.
-2. **Per-tree pattern** — scaffold recorded the exact call-site syntax, so the query matches real stubs and skips the helper definition, imports, and unrelated code.
-
-`.ptk-scaffold` sentinels are written by scaffold, removed by finalize. Committed (never gitignored), so the frontier survives `/new` and resumes cleanly across sessions.
-
-### Recursive Re-stubbing (stepwise refinement)
-
-If execute finds a fill too complex (>~15 lines, multiple responsibilities, can't name it in one sentence), it **doesn't force it.** It extracts sub-functions as new `stub()` call sites:
-
-```ts
-// Instead of writing a 40-line signup, extract:
-export async function signup(input: SignupInput): Promise<User> {
-  await validateSignupInput(input);     // new stub: auth.service.validateSignupInput
-  await ensureNoConflict(input.email);  // new stub: auth.service.ensureNoConflict
-  return repo.insert(input);
-}
-```
-
-The new stubs appear in the next frontier query automatically. The skeleton *improves* as you learn what it actually needs — no re-planning step required.
-
-### Hazard Checkpoints
-
-Scaffold runs a production-hazard audit against the skeleton and annotates risky stubs with `// HAZARD:`. Execute gates on those — it pauses at `CHECKPOINT: done` after filling a hazard stub, so you review the production-risk handling before it commits.
-
-### Key Invariants
-
-These hold at every commit:
-
-1. **The tree compiles and type-checks.** Stub bodies return `never`/panic; they don't break callers.
-2. **Every commit is green.** Filled stubs have passing tests; unfilled stubs are `it.todo`/`t.Skip` (skipped, not failing).
-3. **The frontier is grep-queryable.** No separate status file to drift from reality.
-4. **Scaffold emits shape, execute emits behavior.** No logic in scaffold; no new architecture in execute (only sub-stub refinement).
+For the full internals — the marker protocol, sentinel mechanics, recursive re-stubbing, hazard gates, and key invariants — see **[docs/WORKFLOW.md](docs/WORKFLOW.md)**.
 
 ---
 
@@ -213,6 +156,7 @@ pi-topdown-kit/
 ├── tests/
 │   └── workflow-guard.test.ts
 ├── docs/
+│   ├── WORKFLOW.md                  # Internals reference (marker protocol, frontier, gates)
 │   ├── lessons.md                   # Generic rules for future sessions
 │   └── plans/
 │       ├── PUBLISH.md               # Publishing runbook
@@ -220,16 +164,6 @@ pi-topdown-kit/
 ├── package.json
 └── README.md
 ```
-
----
-
-## Why?
-
-- **AI agents skip design.** Left unchecked, they jump to code and the shape emerges accidentally. This forces a think-shape-first workflow.
-- **The skeleton is reviewable.** You read the whole system's shape — names, layers, boundaries — before any logic distracts you. Mistakes are one-line stub edits, cheap.
-- **Progress can't drift.** The `stub()` frontier is grep. No status file to forget to update, no rows to go stale. The codebase's own grep-ability tracks where you are.
-- **You stay in control.** Checkpoint gates at the skeleton review and at hazard stubs mean you approve the shape and the risky bits before they're committed.
-- **Enforced, not suggested.** Hard blocks mean the agent can't accidentally ignore the rules.
 
 ---
 
@@ -242,7 +176,7 @@ npx biome check .
 
 ## Publishing
 
-See [docs/plans/PUBLISH.md](docs/plans/PUBLISH.md) for the full runbook.
+See [docs/plans/PUBLISH.md](docs/plans/PUBLISH.md) for the full runbook. (Docs must be updated *before* `npm version` — see the runbook.)
 
 ```bash
 npm version patch   # bump
