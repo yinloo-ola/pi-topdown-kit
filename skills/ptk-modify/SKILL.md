@@ -13,8 +13,15 @@ Change the behavior of **existing working code** without losing what it already 
 
 ## Before you start
 
-<!-- spec: Pre-flight checks before touching code. Must cover: (0) if docs/plans/*-decisions.md exists and is uncommitted, commit it first — brainstorm is read-only and cannot have committed it (same handoff-persistence as ptk-scaffold); (1) git state + recent log, note uncommitted work; (2) read docs/plans/*-decisions.md if a brainstorm produced one, else the "design" is the user's stated new contract — confirm it in one sentence; (3) confirm scope is B1 (1-3 known functions). If the change is bigger, say so and point to scaffold/brainstorm instead; (4) identify the project's test framework + how to run just the affected test file. -->
-<!-- ptk:stub "modify.before-you-start" -->
+1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted work; resolve or set it aside before changing behavior — you don't want unrelated changes mixed into a characterization commit.
+
+2. **Commit the decisions doc if present and uncommitted** — if `docs/plans/*-decisions.md` exists and is uncommitted, commit it first. `ptk-brainstorming` is read-only and cannot have committed it; persist the handoff before touching source (same discipline as `ptk-scaffold`). If you came here with no brainstorm, skip this step.
+
+3. **Find the design / new contract** — if a brainstorm produced a decisions doc, read `docs/plans/*-decisions.md` for the new contract. If you came here directly, the "design" is the user's stated new contract — restate it in **one sentence** and confirm with the user before proceeding. A behavior change with no crisp target contract is a signal to brainstorm first.
+
+4. **Confirm scope is B1 — localized** — the change should touch **one to three known functions**. If it spreads across many files, replaces a layer, or you cannot name the target functions up front, stop: that's B2 or new architecture. Point the user to `/skill:ptk-brainstorming` (re-scope) or `/skill:ptk-scaffold` (new shape) instead. Forcing a large change through `ptk-modify` defeats the characterize→change→repin loop.
+
+5. **Identify the test harness** — confirm the project's test framework (vitest/jest/Go testing/etc.) and the exact command to run **just the affected test file** (e.g. `npx vitest run path/to/file.test.ts`, `go test ./pkg/...`). You'll run this repeatedly across the three phases; knowing the scoped command keeps the loop fast. If the target functions have **no existing tests**, note it — phase 1 (characterize) creates them from scratch.
 
 ## The loop
 
