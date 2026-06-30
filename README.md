@@ -57,8 +57,8 @@ Brainstorm is the **triage point**: it routes new shape to `scaffold`, behavior 
 | **Execute** | `/skill:ptk-execute` | Grep the frontier → fill one stub + its unit test per increment (red→green). Recursively re-stubs when a fill is too complex. Tree stays green at every commit. |
 | **Verify** | `/skill:ptk-verify` | Three expert review passes (security, optimization, traceability) on the filled code. |
 | **Finalize** | `/skill:ptk-finalizing` | Remove `.ptk-scaffold` sentinels + `stub()` helper, archive decisions doc, update README/CHANGELOG, create PR. |
-| **Modify** | `/skill:ptk-modify` | Change behavior of existing working code: pin current behavior with characterization tests (green), make the change (intentional red), repin to the new contract (green). **B1 — localized changes (1–3 functions) only.** |
-| **Diagnose** | `/skill:ptk-diagnose` | 6-phase debugging loop: reproduce → hypothesise → instrument → fix. Utility skill, any time. |
+| **Modify** | `/skill:ptk-modify` | Change behavior of existing working code: pin current behavior with characterization tests (green), make the change (intentional red), repin to the new contract (green). **Localized changes (1–3 functions) only.** |
+| **Diagnose** | `/skill:ptk-diagnose` | 6-phase debugging discipline: build feedback loop → reproduce → hypothesise → instrument → fix → cleanup. Utility skill, any time. |
 
 There is **no `writing-plans` skill**. The skeleton *is* the plan — real, compilable code, not markdown prose.
 

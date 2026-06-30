@@ -55,3 +55,5 @@ Required before declaring done:
 - All `[DEBUG-...]` instrumentation removed
 - Ask: what would have prevented this bug?
 - If the bug was caused by an architectural problem (no good test seam, tangled callers, hidden coupling), suggest writing an ADR to `docs/plans/adr/` capturing that insight
+
+**Route the fix if you can't apply it here.** In a blocking phase (brainstorm/verify) the guard blocks source writes — note the fix and hand off: existing working code → `/skill:ptk-modify`; an unfilled stub → `/skill:ptk-execute`. When unlocked, phases 5–6 apply the fix directly.

@@ -7,108 +7,84 @@ description: "Post-implementation code verification with three expert review pas
 
 Three expert review passes over the implemented codebase. Read-only — you **may** write the verification report to `docs/plans/`, but you **may not** modify source code.
 
-The core insight: code that passes tests is not code that's ready. Working code can have security holes, dead branches, duplicated logic, and broken contracts between layers — especially when AI fills stubs one at a time without maintaining a single mental model of the whole system. This skill catches what tests miss.
+The core insight: code that passes tests is not code that's ready. Working code can have security holes, dead branches, duplicated logic, and broken contracts between layers — especially when AI fills stubs one at a time without maintaining a single mental model of the whole. This skill catches what tests miss.
 
-> **ptk-verify vs ptk-scaffold's hazard check:** Scaffold's hazard check happens *before* any logic exists, reviewing the skeleton's shape for production risks. This skill runs *after* ptk-execute fills the stubs, reviewing the actual filled-in behavior. Both exist; they are not redundant.
+> **ptk-verify vs ptk-scaffold's hazard check:** scaffold audits the *skeleton's shape* before any logic exists; this audits the *filled-in behavior* after execute. Both exist; they are not redundant.
 
 ## Process
 
-1. **Check what's been done** — run `git log --oneline` and `git diff --stat` to understand the scope of recent changes. **If more than one `.ptk-scaffold` sentinel exists**, several features are in flight — list each sentinel's `# feature:` line and ask the user which to verify; scope all checks below to that sentinel's directory. Confirm the frontier is empty for that feature: **if a `.ptk-scaffold` sentinel exists**, find every stub call site under its sentinel directory (the sentinel's first non-comment line is the ERE pattern; use whatever search tool you have); if stubs remain, say "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop. **If no sentinel exists** (e.g. after a `ptk-modify` session, which uses no `stub()` frontier — its pins are characterization tests, not `stub()` call sites), skip the frontier check and scope the review to the recent `git diff` instead.
+1. **Check scope and feature** — `git log --oneline` and `git diff --stat`. If more than one `.ptk-scaffold` sentinel exists, list each sentinel's `# feature:` line and ask the user which to verify; scope all checks to that sentinel's directory.
 
-   > **Phase awareness.** This skill runs in a *blocking* phase — the guard restricts `bash` to read-only commands and blocks shell loops (`for`/`while` with `;`). To list sentinels or scan their patterns, prefer non-bash tools: the `find` and `grep` builtins, or an extension like `ast_search`. A bash `for f in $(find...)` loop will be blocked here; a single `grep -rnE 'pattern' dir` passes.
+   **Confirm the frontier is empty for that feature.** If a sentinel exists, find every stub call site under its directory (the sentinel's first non-comment line is the ERE pattern; use whatever search tool you have). If stubs remain: "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop. **If no sentinel exists** (e.g. after a `ptk-modify` session — its pins are characterization tests, not `stub()` call sites), skip the frontier check and scope the review to the recent `git diff` instead.
 
-2. **Identify the project's layers** — before reviewing, map the codebase's architecture. The skeleton's module outline (from `docs/plans/*-decisions.md`) is the starting map, but verify it against what was actually built. Note the patterns: handlers/routes → services → repositories → models. This map drives the traceability pass.
+   > This skill runs in a *blocking* phase — the guard restricts `bash` to read-only commands and blocks shell loops. To list sentinels or scan patterns, prefer non-bash tools (`find`/`grep` builtins or an extension) over a `for f in $(find…)` loop.
 
-3. **Run three expert review passes** — each pass adopts a distinct adversarial framing. Do them sequentially. For each pass, read the relevant code deeply — don't skim. Then write findings.
+2. **Map the project's layers** — start from the skeleton's module outline in `docs/plans/*-decisions.md`, but verify it against what was actually built. Note the patterns: handlers/routes → services → repositories → models. This map drives the traceability pass.
 
-4. **Compile the report** — write all findings to `docs/plans/*-verification-report.md`. Present the report to the user and wait for feedback.
+3. **Run three expert review passes** — each adopts a distinct adversarial framing, done sequentially. Read the relevant code deeply — don't skim — then write findings.
 
-5. **Offer remediation** — route each finding to the right phase by its *nature*, not a blanket default. Present the routing so the user knows which skill applies each fix:
+4. **Compile the report** — write all findings to `docs/plans/*-verification-report.md`, present it, wait for feedback.
 
-   - **Behavioral findings** (security holes, traceability seam mismatches, dead-code removal, over-engineering simplification — any fix to existing working code) → `/skill:ptk-modify`. These are localized changes to existing behavior: characterize the current behavior (green), make the fix (intentional red), repin (green). This is `ptk-modify`'s exact purpose, and ptk-modify is the right answer to its own verify findings.
-   - **Documentation / polish** (README/CHANGELOG drift, JSDoc comments, project-tree updates) → fold into `/skill:ptk-finalizing` — it owns "update README/CHANGELOG/inline docs."
-   - **The skeleton itself is wrong** (architecture off, wrong module boundaries, missing layer) → re-run `/skill:ptk-scaffold` for that piece.
+5. **Offer remediation** — route each finding by its *nature*, not a blanket default. Present the routing so the user knows which skill applies each fix:
 
-   Do NOT default to `/skill:ptk-execute` — after execute finishes, the `stub()` frontier is empty and there is nothing to "re-fill." A verify finding is a problem in already-filled, working code, not an unfilled stub. Routing it to execute would require reverting a fill back to `stub()` first, and most findings (comment fixes, renames, doc drift) aren't stub-shaped anyway. Reserve execute for genuinely unfinished stubs.
+   - **Behavioral** (security holes, traceability seam mismatches, dead-code removal, over-engineering simplification — any fix to existing working code) → `/skill:ptk-modify`. This is ptk-modify's exact purpose, and the right answer to its own verify findings.
+   - **Documentation / polish** (README/CHANGELOG drift, JSDoc, project-tree updates) → fold into `/skill:ptk-finalizing`.
+   - **The skeleton itself is wrong** (wrong module boundaries, missing layer) → re-run `/skill:ptk-scaffold` for that piece.
+
+   Do NOT default to `/skill:ptk-execute` — after execute finishes the `stub()` frontier is empty and there is nothing to "re-fill." A verify finding is a problem in already-filled working code, not an unfilled stub. Reserve execute for genuinely unfinished stubs.
 
 ## Pass 1 — Security Review 🔴
 
-**Framing:** A junior developer wrote this code. Now the best security expert on the team is reviewing it — adversarial, suspicious of everything. Trust nothing.
+**Framing:** A junior developer wrote this. Now the best security expert on the team is reviewing it — adversarial, suspicious of everything. Trust nothing.
 
-**What to look for:**
-
-- **Input validation** — every external input (HTTP params, form data, headers, query strings, environment variables) must be validated and sanitized. Unvalidated input is a critical finding.
-- **Authentication & authorization** — every endpoint that handles user data must have auth checks. Are there endpoints that skip auth? Can one user access another user's data by changing an ID?
-- **Injection** — SQL queries built by string concatenation, unsanitized shell commands, template injection, XSS in HTML output. Any raw variable interpolated into a query or command is critical.
-- **Secrets** — API keys, passwords, tokens hardcoded in source files. Check environment variable loading — are defaults set to empty or to actual secrets?
-- **Data exposure** — are sensitive fields (passwords, tokens, PII) logged, returned in API responses, or stored unencrypted?
-- **Dependency risks** — known-vulnerable packages (if `package.json`/`go.mod`/`requirements.txt` is present).
-
-**Severity classification:**
+Look for: **input validation** (every external input — HTTP params, headers, query strings, env vars — validated/sanitized); **auth/authz** (every user-data endpoint checked; can one user reach another's data by changing an ID?); **injection** (SQL/shell/template/XSS — any raw variable interpolated into a query or command is critical); **secrets** (hardcoded keys/tokens; env defaults that aren't empty); **data exposure** (passwords/PII logged, in responses, or unencrypted); **dependency risks** (known-vulnerable packages).
 
 | Severity | Definition |
 |----------|-----------|
-| Critical | Exploitable right now — auth bypass, injection, data leak |
+| Critical | Exploitable now — auth bypass, injection, data leak |
 | High | Likely exploitable — missing validation on sensitive endpoint, weak auth |
-| Medium | Harder to exploit but real risk — verbose error messages leaking internals, missing rate limits |
-| Low | Best practice violations — missing CSP headers, no HSTS, long session timeouts |
+| Medium | Harder to exploit but real — verbose errors leaking internals, missing rate limits |
+| Low | Best-practice violations — missing CSP/HSTS, long session timeouts |
 
 ## Pass 2 — Optimization Review 🟡
 
-**Framing:** A code quality expert looking for waste — things that make the codebase harder to maintain, slower to run, or more confusing than necessary.
+**Framing:** A code-quality expert hunting waste — things that make the codebase harder to maintain, slower to run, or more confusing than necessary.
 
-**What to look for:**
-
-- **Dead code** — functions, methods, types, or exports that are never called anywhere in the codebase. Search for definitions and verify they have callers. (Stub skeletons are prone to leftover `it.todo`/`t.Skip` markers that execute never converted — flag those.)
-- **Duplication** — the same logic implemented in slightly different ways across multiple files. AI-filled stubs are especially prone to this — if context was lost between fills, the AI solved the same sub-problem differently in two places. Flag each pair with file paths and line numbers.
-- **Over-engineering** — abstractions, interfaces, or layers that add complexity without earning their keep (only one implementation, no real variation across the seam).
-- **Under-engineering** — god functions, 200-line blocks, deeply nested conditionals that should have been split into sub-stubs during execute.
-- **Performance concerns** — N+1 queries, unbounded loops, unnecessary copies of large data structures, missing pagination on list endpoints.
-
-**Priority classification:**
+Look for: **dead code** (functions/types/exports never called anywhere — verify they have callers); **duplication** (same logic solved slightly differently across files — AI fills are especially prone when context was lost between fills; flag each pair with paths + lines); **over-engineering** (abstractions/interfaces/layers that don't earn their keep — only one impl, no real variation); **under-engineering** (god functions, 200-line blocks, deep nesting that should have been sub-stubs); **performance** (N+1 queries, unbounded loops, large unnecessary copies, missing pagination on list endpoints).
 
 | Priority | Definition |
 |----------|-----------|
-| P0 | Dead code in a critical path or duplicated logic that will diverge |
-| P1 | Significant duplication or over-engineering that increases maintenance cost |
-| P2 | Minor cleanups — long functions, missing pagination, style inconsistencies |
+| P0 | Dead code on a critical path, or duplicated logic that will diverge |
+| P1 | Significant duplication or over-engineering raising maintenance cost |
+| P2 | Minor cleanups — long functions, missing pagination, style drift |
 
 ## Pass 3 — Traceability Review 🔵
 
-**Framing:** An integration expert tracing every user-facing action end-to-end — from UI to database and back. Stubs are filled one at a time, and the seams between filled stubs are where bugs hide.
+**Framing:** An integration expert tracing every user-facing action end-to-end — UI to database and back. Stubs filled one at a time leave bugs at the seams.
 
-**What to look for:**
+**This is the pass that catches the most bugs.** AI fills often produce a handler calling `getUserProfile(userId)` and a repository exposing `get_user_profile(user_id)` — both work in isolation, neither works together.
 
-1. **Map every entry point** — list all handlers, routes, controllers, or event listeners that receive external input.
-2. **Trace each call chain** — for each entry point, follow the call through the filled stubs: handler → service → repository → database. At each boundary, verify:
-   - **Function name** — does the caller use the exact function name the callee exposes?
-   - **Argument names** — does the caller pass `userId` when the function expects `user_id`? Does `id` mean the same thing in both layers?
-   - **Argument types** — is a string passed where an integer is expected? Is an object shape different from what the next layer destructures?
-   - **Return shape** — does the caller expect fields that the callee actually returns? Are response DTOs consistent across layers?
-3. **Check error propagation** — when a database query returns no results, does the service layer handle it? Does the handler return 404 or 500? Do errors propagate cleanly or get swallowed silently?
-4. **Verify the round-trip** — if the UI calls `getUser(id)` and displays `user.name`, trace that `name` actually exists in the DB schema, gets selected by the query, mapped by the repository, passed through the service, included in the response, and rendered by the UI.
-
-**This is the pass that catches the most bugs.** AI-filled stubs will often have a handler calling `getUserProfile(userId)` and a repository exposing `get_user_profile(user_id)` — both work in isolation, neither works together.
-
-**Severity classification:**
+1. **Map every entry point** — handlers, routes, controllers, event listeners receiving external input.
+2. **Trace each call chain** through the filled stubs (handler → service → repository → DB). At each boundary verify: **function name** (caller uses the exact name callee exposes); **argument names** (`userId` vs `user_id` — does `id` mean the same thing in both layers?); **argument types** (string where int expected? object shape mismatch?); **return shape** (does the caller expect fields the callee actually returns? consistent DTOs?).
+3. **Check error propagation** — when a query returns no results, does the service handle it? Does the handler return 404 or 500? Errors propagated cleanly or swallowed silently?
+4. **Verify the round-trip** — if the UI calls `getUser(id)` and displays `user.name`, trace that `name` exists in the schema, gets selected, mapped, passed through, included in the response, and rendered.
 
 | Severity | Definition |
 |----------|-----------|
-| Critical | Call chain is completely broken — function doesn't exist or signature is fundamentally wrong |
-| High | Signature mismatch — wrong arg names, wrong types, missing required fields |
-| Medium | Silent error handling — errors swallowed without logging or user feedback |
-| Low | Inconsistent naming conventions that could confuse future developers |
+| Critical | Call chain completely broken — function doesn't exist or signature fundamentally wrong |
+| High | Signature mismatch — wrong arg names/types, missing required fields |
+| Medium | Silent error handling — errors swallowed without logging or feedback |
+| Low | Inconsistent naming that could confuse future developers |
 
 ## Report Format
 
-Write findings to `docs/plans/*-verification-report.md` using this structure:
+Write findings to `docs/plans/*-verification-report.md`. Each finding: a short title, location (`path/to/file.ts:line`), the issue, and a concrete fix. Group by pass under `## 🔴 Security`, `## 🟡 Optimization`, `## 🔵 Traceability` headers, prefixed with an ID + severity/priority (e.g. `### [S-001] Critical — …`). Start with a summary table:
 
 ```markdown
 # Verification Report: <feature/topic>
 
 **Date:** <ISO date>
-**Scope:** <summary of what was reviewed>
-**Reviewer:** AI verify skill (security + optimization + traceability)
+**Scope:** <what was reviewed>
 
 ## Summary
 
@@ -120,61 +96,36 @@ Write findings to `docs/plans/*-verification-report.md` using this structure:
 | **Total** | **X** | **X** | **X** | **X** |
 
 ## 🔴 Security Findings
-
 ### [S-001] Critical — <short title>
-
 **Location:** `path/to/file.ts:line`
-
 **Issue:** <what's wrong and why it matters>
-
 **Fix:** <concrete remediation step>
-
-### [S-002] High — <short title>
-...
 
 ## 🟡 Optimization Findings
-
 ### [O-001] P0 — <short title>
-
-**Location:** `path/to/file.ts:line` and `path/to/other.ts:line`
-
-**Issue:** <what's wrong>
-
-**Fix:** <concrete remediation step>
-
-### [O-002] P1 — <short title>
-...
+…
 
 ## 🔵 Traceability Findings
-
 ### [T-001] Critical — <short title>
-
 **Entry point:** `path/to/handler.ts:line`
 **Call chain:** handler → service → repository → DB
 **Broken at:** <which boundary>
-**Issue:** <what's wrong — e.g., handler passes `userId` but service expects `user_id`>
-
+**Issue:** <e.g. handler passes `userId` but service expects `user_id`>
 **Fix:** <concrete remediation step>
-
-### [T-002] High — <short title>
-...
 
 ## Remediation Task List
 
-Convert findings into actionable tasks:
-
-| ID | Priority | Finding | Estimated Effort |
-|----|----------|---------|-----------------|
-| S-001 | Critical | <one-liner> | <small/medium/large> |
-| T-001 | Critical | <one-liner> | <small/medium/large> |
-| O-001 | P0 | <one-liner> | <small/medium/large> |
-| ... | ... | ... | ... |
+| ID | Priority | Finding | Effort |
+|----|----------|---------|--------|
+| S-001 | Critical | <one-liner> | small/medium/large |
+| T-001 | Critical | <one-liner> | … |
+| O-001 | P0 | <one-liner> | … |
 ```
 
 ## Principles
 
-- **Be specific** — every finding must include a file path and line reference. "There might be security issues" is useless.
-- **Be adversarial** — actively look for problems. If you don't find any, say so — but don't phone it in.
-- **Be proportional** — a small config change doesn't need the same depth as a new API endpoint. Adjust your review depth to the scope of changes.
-- **Don't fix anything** — this is read-only. Find and report. The user decides what to fix and when.
-- **Focus on seams** — the traceability pass is where the most value lives. Code within a single stub is usually coherent; the bugs hide between filled stubs.
+- **Be specific** — every finding needs a file path and line reference. "There might be security issues" is useless.
+- **Be adversarial** — actively look for problems. If you find none, say so — but don't phone it in.
+- **Be proportional** — a small config change doesn't need the same depth as a new API endpoint. Adjust review depth to scope.
+- **Don't fix anything** — read-only. Find and report. The user decides what to fix and when.
+- **Focus on seams** — the traceability pass is where the most value lives. Code within a single stub is usually coherent; bugs hide between filled stubs.

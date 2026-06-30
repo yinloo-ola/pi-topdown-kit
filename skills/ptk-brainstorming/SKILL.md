@@ -79,8 +79,9 @@ You've established *what* the change is. Pick the next skill by *what kind* of c
 |---|---|
 | Creates new modules/files, or adds new code into existing ones (new shape) | `/skill:ptk-scaffold` |
 | Changes the behavior of existing working code (localized — 1–3 functions) | `/skill:ptk-modify` |
+| Replaces a whole live subsystem (build new alongside, swap later) | `/skill:ptk-scaffold`, then `/skill:ptk-finalizing`'s swap step |
 | Something is broken and needs debugging | `/skill:ptk-diagnose` |
 
-If you're unsure between scaffold and modify: does the change create a new "place" (new code to write), or change what an existing "place" does? New code → scaffold; changing existing behavior → modify.
+If you're unsure between scaffold and modify: does the change create a new "place" (new code to write), or change what an existing "place" does? New code → scaffold; changing existing behavior → modify. A whole-subsystem replacement is also new code (the replacement) — scaffold it; the old subsystem is removed during the swap in finalize.
 
 Ask: "Which next? `/skill:ptk-scaffold` (new shape), `/skill:ptk-modify` (change behavior), or `/skill:ptk-diagnose` (it's broken)?"

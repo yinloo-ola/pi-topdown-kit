@@ -5,58 +5,53 @@ description: "Use this after ptk-brainstorming to materialize the system design 
 
 # Scaffold
 
-Materialize the system design blueprint as **real code** in the repo. This is where the chunking benefit lands: the human reviews the entire system's shape — layering, module boundaries, names, signatures — as a `git diff`, before any logic exists.
+Materialize the system design blueprint as **real code**. This is where the chunking benefit lands: the human reviews the whole system's shape — layering, module boundaries, names, signatures — as a diff, before any logic exists.
 
-> **What scaffold is NOT:** scaffold emits *shape*, not behavior. Every function body is a `stub("...")` call that throws. No logic. No real test assertions. The skeleton compiles and type-checks, tests are placeholders (`it.todo` / `t.Skip`), but nothing actually runs end-to-end. Behavior is `ptk-execute`'s job.
-
-This skill absorbs what other kits split into "writing-plans" + "design-review": the plan *is* the skeleton (real code, not markdown prose), and the hazard audit happens against that skeleton at the review checkpoint.
+> **Scaffold is NOT:** it emits *shape*, not behavior. Every function body is a `stub("…")` call that throws. No logic. No real test assertions. The skeleton compiles and type-checks, tests are placeholders (`it.todo` / `t.Skip`), but nothing runs end-to-end. Behavior is `ptk-execute`'s job. The plan *is* the skeleton (real code, not markdown prose); the hazard audit runs against that skeleton at the review checkpoint.
 
 ## Before you start
 
-1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted changes.
+1. **Check git state** — `git status` and `git log --oneline -5`. Note uncommitted changes.
+2. **Detect resume vs fresh start** — cross-session coherence keys on artifacts on disk, not commit messages. Match the first row that applies:
 
-2. **Detect resume vs fresh start** — the kit's cross-session coherence depends on landing in the right state from artifacts alone. Check, in order:
+   | State on disk | Action |
+   |---|---|
+   | `.ptk-scaffold` sentinels / `stub()` files exist, but **no `scaffold:` commit** in `git log` | **Resume** a paused checkpoint — skip to step 8 and present the existing uncommitted skeleton for review. Do **not** re-emit. |
+   | `scaffold:` commit already in `git log` | Already committed — ask "Did you mean `/skill:ptk-execute` to fill it, or re-scaffold on top?" and wait. |
+   | `docs/plans/*-decisions.md` exists (uncommitted), no sentinels, no `scaffold:` commit | Just came from brainstorm — re-read it, proceed to step 4 (commit). Don't re-run brainstorm. |
+   | None of the above | Fresh scaffold. Continue to step 3. |
 
-   - **(a) Resume a paused checkpoint?** If `.ptk-scaffold` sentinels or `stub()` files exist on disk but there is **no `scaffold:` commit in `git log`**, you are resuming a skeleton that was emitted and then paused at `⏸ CHECKPOINT: skeleton`. **Do not re-emit.** Skip straight to step 8 (the checkpoint) and present the existing uncommitted skeleton for review. (This is what makes the checkpoint menu's "resume later with /skill:ptk-scaffold" actually work across `/new`.)
-   - **(b) Re-entering a committed skeleton?** If a `scaffold:` commit already exists in the log, the skeleton is already committed — say "Skeleton already committed for <topic>. Did you mean `/skill:ptk-execute` to fill it, or re-scaffold on top?" and wait for the user.
-   - **(c) Resuming from brainstorm?** If `docs/plans/*-decisions.md` exists (uncommitted) but no `.ptk-scaffold` sentinels and no `scaffold:` commit exist, you likely just came from a brainstorm session. Re-read the decisions doc and proceed to step 4 (commit it) — do not re-run brainstorm.
-   - **(d) Otherwise: fresh scaffold.** None of the above. Continue to step 3.
-
-3. **Find the decisions doc** — look for `docs/plans/*-decisions.md`. If none exists, say "No decisions doc found. Run `/skill:ptk-brainstorming` first." and stop. Read it in full.
-
-4. **Commit the decisions doc first** — `ptk-brainstorming` is read-only and cannot commit, so the decisions doc is uncommitted on disk. It is the handoff artifact for this phase (module outline, name-collision choice, the why). Persist it **before** emitting any skeleton, so a crash or `/new` after this point can still recover:
+3. **Find the decisions doc** — look for `docs/plans/*-decisions.md`. If none exists: "No decisions doc found. Run `/skill:ptk-brainstorming` first." and stop. Read it in full.
+4. **Commit the decisions doc first** — brainstorm is read-only, so it's uncommitted on disk. Persist it **before** emitting any skeleton, so a crash or `/new` can still recover:
    ```
    git add docs/plans/*-decisions.md && git commit -m "docs: decisions for <topic>"
    ```
-   If `git status` shows the decisions doc is already committed (e.g. resuming), skip this step.
-
-5. **Extract the module outline** — the decisions doc's `## Module outline` section lists the modules/layers to create. If it's missing or too vague (just "auth stuff"), go back to the user and ask them to re-run brainstorm with a concrete outline.
-
-6. **Suggest workspace isolation** — if the user isn't already on a feature branch or worktree, offer:
+   Skip if `git status` shows it's already committed.
+5. **Extract the module outline** — the decisions doc's `## Module outline` lists the modules/layers to create. If it's missing or too vague (just "auth stuff"), ask the user to re-run brainstorm with a concrete outline.
+6. **Suggest workspace isolation** — if not already on a feature branch or worktree, offer:
    - **Branch** (smaller skeletons): `git checkout -b <feature-name>`
    - **Worktree** (larger skeletons, keeps main clean): `git worktree add ../<repo>-<feature-name> -b <feature-name>`
 
-   Derive `<feature-name>` from the decisions doc topic. Ask the user which they prefer, then wait for confirmation before proceeding. If worktree was chosen, move the decisions doc into the worktree, commit it there, and hand off to a new session (same pattern as other kits).
+   Derive `<feature-name>` from the decisions doc topic. Ask which they prefer, wait for confirmation. If worktree was chosen, move the decisions doc into the worktree, commit it there, hand off to a new session.
 
-> **Multi-feature repos:** the topic from the decisions doc filename becomes the `feature:` recorded in each sentinel (see step 5 of the Process). That lets `ptk-execute` / `ptk-verify` / `ptk-finalizing` scope to one feature when several are in flight — see those skills.
+> **Multi-feature repos:** the topic from the decisions doc filename becomes the `feature:` recorded in each sentinel (step 5). That lets execute / verify / finalize scope to one feature when several are in flight.
 
 ## Process
 
 ### 1. Plan the skeleton (in your head / scratchpad, not committed)
 
 From the module outline, decide:
-- **Files** — one file per module, organized by layer (handlers/, services/, repos/, etc. — follow the project's existing conventions).
-- **Types** — full type/interface definitions needed for the skeleton to type-check. These are concrete (the skeleton must compile). Types are not "logic" — they're shape.
-- **Stubs** — every function/method the outline implies. Each gets:
-  - A **one-line doc comment** naming what it does (this is the spec execute will test against).
-  - A `stub("module.function")` body.
-- **Test files** — one per module. Each stub gets an `it.todo("...")` (vitest/jest) or `t.Skip` (Go) placeholder. Never a real assertion yet.
+
+- **Files** — one per module, organized by layer (handlers/, services/, repos/, … — follow the project's existing conventions).
+- **Types** — full type/interface definitions needed to type-check. Concrete (the skeleton must compile). Types are shape, not logic.
+- **Stubs** — every function/method the outline implies. Each gets a **one-line doc comment** naming what it does (the spec execute will test against) and a `stub("module.function")` body.
+- **Test files** — one per module. Each stub gets an `it.todo("…")` (vitest/jest) or `t.Skip` (Go) placeholder. Never a real assertion yet.
 
 ### 2. Emit the `stub()` marker helper
 
-Create the marker helper **once per language**. This is the kit's progress-tracking mechanism — `ptk-execute` greps for it to find unfilled stubs.
+Create the marker helper **once per language** — execute greps for it to find unfilled stubs.
 
-**TypeScript** — `src/_ptk/stub.ts` (or wherever the project keeps internal utils):
+**TypeScript** — `src/_ptk/stub.ts`:
 ```ts
 /** Marker for unfilled stubs. ptk-execute finds these via grep and fills them.
  *  Removed by ptk-finalize once the frontier is empty. */
@@ -78,11 +73,11 @@ func Stub(path string) {
 }
 ```
 
-**Name collision:** if the target repo already defines `stub` / `Stub`, use `ptkStub` / `PtkStub` instead. Search before creating. Document the chosen name in the decisions doc so execute and finalize agree.
+**Name collision:** if the repo already defines `stub` / `Stub`, use `ptkStub` / `PtkStub` instead. Search before creating. Document the chosen name in the decisions doc so execute and finalize agree.
 
 ### 3. Emit the skeleton, layer by layer
 
-Write the files. Top-down: start with the highest layer (handlers/API), descend through services to data/repo. Each function:
+Write the files top-down: highest layer first (handlers/API), descend through services to data/repo. Each function:
 
 ```ts
 // src/auth/service.ts
@@ -100,14 +95,11 @@ export async function login(email: string, password: string): Promise<string> {
 }
 ```
 
-Every stub:
-- Has a doc comment that is a **complete spec** (inputs, return, thrown errors). Execute writes the test from this comment.
-- Calls `stub("dotted.path")` with a stable, unique path.
-- Has no other logic.
+Every stub has a doc comment that is a **complete spec** (inputs, return, thrown errors), calls `stub("dotted.path")` with a stable unique path, and has no other logic.
 
 ### 4. Emit test placeholders
 
-One test file per module. Each stub gets `it.todo` / `t.Skip`:
+One test file per module. Each stub gets `it.todo` / `t.Skip`, echoing its doc comment — execute expands each into a real test:
 
 ```ts
 // src/auth/service.test.ts
@@ -121,13 +113,11 @@ describe("auth.service", () => {
 });
 ```
 
-The todo strings echo the stub's doc comment — execute will expand each into a real test.
-
 ### 5. Write the sentinel (carries the frontier pattern)
 
 Write a `.ptk-scaffold` file at the root of each scaffolded module tree. **Its first non-comment line is the ERE that matches this tree's stub call sites** — execute, verify, and finalize read it to find the frontier, so they never hardcode a language-specific pattern.
 
-Derive the pattern from the literal stub syntax you just emitted — whatever a call site looks like in this language, grep for that. You wrote the stubs, so you know exactly what to search for:
+Derive the pattern from the literal call-site syntax you just emitted — whatever a call site looks like in this language, grep for that:
 
 | You wrote (call site) | Sentinel `.ptk-scaffold` contents | Language |
 |---|---|---|
@@ -137,10 +127,7 @@ Derive the pattern from the literal stub syntax you just emitted — whatever a 
 | `ptk_stub("auth.signup")` | `ptk_stub\(["']` | Python (both quote styles; collision-renamed) |
 | `(stub "auth.signup")` | `\(stub "` | Clojure/Lisp |
 
-`#`-prefixed lines in the sentinel are comments and ignored as patterns. **The first non-`#` non-blank line is the ERE pattern.** Two comment lines are conventional and read by consumers:
-
-- `# feature: <topic>` — the feature this sentinel belongs to (the topic from the decisions doc filename). Lets `ptk-execute` / `ptk-verify` / `ptk-finalizing` scope to one feature when several are in flight.
-- `# language: <lang>` — optional, human-readable hint (e.g. `typescript`, `go`, `haskell`).
+`#`-prefixed lines are comments. Two are conventional and read by consumers: `# feature: <topic>` (which feature this sentinel belongs to — the decisions doc filename) and `# language: <lang>` (optional hint). The first non-`#` non-blank line is the ERE pattern:
 
 ```
 # .ptk-scaffold — written by ptk-scaffold, removed by ptk-finalize.
@@ -150,22 +137,17 @@ Derive the pattern from the literal stub syntax you just emitted — whatever a 
 stub\("
 ```
 
-Presence of `.ptk-scaffold` means "this tree is an active frontier — search here." Its pattern line says *how* to search. Its `feature:` line says *which feature* it belongs to. Execute greps each sentinel's pattern under that sentinel's directory.
+- Execute greps each sentinel's pattern under that sentinel's directory. One sentinel per distinct subtree/language:
+  ```
+  src/.ptk-scaffold
+  src/auth/.ptk-scaffold   # if auth is a distinct subtree (e.g. a different language)
+  ```
+- Removed by `ptk-finalize` when its subtree's grep goes empty.
+- **Don't gitignore it.** `.ptk-scaffold` must be committed so it survives `/new`. If the project has an aggressive dotfile ignore, `git add -f`.
 
-```
-src/.ptk-scaffold
-src/auth/.ptk-scaffold   # if auth is a distinct subtree (e.g. a different language)
-```
+### 6. Run the hazard check
 
-The sentinel is removed by `ptk-finalize` when its subtree's grep goes empty.
-
-> **Don't gitignore it.** `.ptk-scaffold` must be committed so it survives across sessions and `/new`. It's not in any standard gitignore pattern; if the project has an aggressive dotfile ignore, explicitly `git add -f`.
-
-> **Polyglot repos:** each sentinel carries its own tree's pattern, so a TS frontend and a Go backend each get a sentinel with the right ERE. No global pattern needs to cover both.
-
-### 6. Run the hazard check (absorbed from design-review)
-
-The skeleton now has real signatures and real layer boundaries — a better artifact to audit than prose. Put on your **SRE Hat** and run the production-hazard checklist against it.
+The skeleton now has real signatures and real layer boundaries — a better artifact to audit than prose. Put on your **SRE Hat** and run the production-hazard checklist.
 
 **Architectural Pillars** (1-2 sentence assessment each):
 1. **Robustness & Fault Tolerance** — how expected failures are handled, subsystem isolation, graceful degradation.
@@ -190,7 +172,7 @@ The skeleton now has real signatures and real layer boundaries — a better arti
 - **Hostile World** — if a malicious actor controls these inputs (headers, payloads, IDs), how can they exploit/crash/extract?
 - **Silent Error** — if this downstream dependency hangs or fails silently, how does the server react? Timeout? Back-off? Logging?
 
-**For every triggered hazard or Socratic risk**, annotate the relevant stub in the skeleton with a `// HAZARD:` comment so execute knows to pause for review when filling it:
+**For every triggered hazard or Socratic risk**, annotate the relevant stub with a `// HAZARD:` comment so execute pauses for review when filling it:
 
 ```ts
 /** Processes a batch of uploads. */
@@ -211,9 +193,7 @@ The tree must be **green**: it compiles, type-checks, and the only test output i
 
 ### 8. ⏸ CHECKPOINT: skeleton — present for review
 
-This is the deliberate "review the whole shape" gate. Stop. Do not commit yet.
-
-Show the skeleton. Its files are brand-new (untracked), so a plain `git diff` prints nothing — instead either show file contents directly, or stage-then-diff: `git add -N <files>` then `git diff`, or `git add <files>` then `git diff --cached`. Present:
+Stop. Do not commit yet. The files are brand-new (untracked), so a plain `git diff` prints nothing — show file contents directly, or stage-then-diff (`git add -N <files> && git diff`, or `git add <files> && git diff --cached`). Present:
 
 ```
 ⏸ Paused at checkpoint: skeleton
@@ -252,16 +232,15 @@ ptk-execute fills them layer by layer. Tree compiles, tests are it.todo
 placeholders (skipped, not failing)."
 ```
 
-Then: "Skeleton committed. Ready to fill? Run `/skill:ptk-scaffold`'s sibling: `/skill:ptk-execute`"
+Then: "Skeleton committed. Ready to fill? Run `/skill:ptk-execute`"
 
 ## Principles
 
-- **Shape, not behavior.** If you find yourself writing logic, stop — that's execute's job. The skeleton is a map, not the territory.
-- **The doc comment IS the spec.** Execute writes the test from it. Make it complete: inputs, return, thrown errors. "Registers a user" is too vague; "Registers a user, returns the created User, throws DuplicateEmail on conflict" is a spec.
-- **One stub, one behavior.** If a function does two things, split it into two stubs. Execute fills one behavior per increment.
-- **Top-down layering.** Emit handlers before services before repos. The review reads top-down, matching how experts chunk code.
-- **The skeleton compiles.** Every commit leaves the tree green. Stubs return `never`/panic, so callers type-check; tests are `it.todo`/`t.Skip`, so the suite is green.
-- **Don't over-stub.** If the module outline doesn't imply a function, don't create it. YAGNI applies to the skeleton too — execute can recursively re-stub if a fill needs a helper.
+- **Shape, not behavior.** If you find yourself writing logic, stop — that's execute's job.
+- **The doc comment IS the spec.** Execute writes the test from it. "Registers a user" is too vague; "Registers a user, returns the created User, throws DuplicateEmail on conflict" is a spec.
+- **One stub, one behavior.** If a function does two things, split it into two stubs.
+- **Top-down layering.** Emit handlers before services before repos — the review reads top-down, matching how experts chunk code.
+- **Don't over-stub.** If the outline doesn't imply a function, don't create it. Execute can recursively re-stub if a fill needs a helper.
 
 ## After the scaffold
 

@@ -5,23 +5,19 @@ description: "Use this to change the behavior of existing working code safely �
 
 # Modify
 
-Change the behavior of **existing working code** without losing what it already does. The danger in modifying live code is silent regression — breaking behavior that nothing pins. `ptk-modify` solves it with a **characterize → change → repin** loop: pin *current* behavior as tests (green), make the change (the relevant pins go red), separate *intended* reds (the behavior you meant to change) from *regressions* (unexpected breaks), then repin the intended reds to the new contract (green again). The tree is green at every commit.
+Change the behavior of **existing working code** without losing what it already does. The danger in modifying live code is silent regression — breaking behavior that nothing pins. `ptk-modify` solves it with a **characterize → change → repin** loop: pin *current* behavior as tests (green), make the change (the relevant pins go red), separate *intended* reds (the behavior you meant to change) from *regressions* (unexpected breaks), then repin the intended reds to the new contract (green again).
 
-> **What ptk-modify is NOT:** it is not for new code (that's `ptk-scaffold` + `ptk-execute` — the `stub()` frontier). It is not for replacing a whole live subsystem (B2 — build new alongside, then swap). It is for **localized** changes — one or a few known functions whose current behavior you can capture in tests before touching them. There is no `stub()` frontier here; **characterization tests are the frontier-equivalent** — they pin old behavior the way `stub()` pins intended new behavior.
+> **What ptk-modify is NOT:** not for new code (that's `ptk-scaffold` + `ptk-execute` — the `stub()` frontier), and not for replacing a whole live subsystem (build the new version alongside, then swap — see `ptk-finalizing`'s swap step). It is for **localized** changes — one or a few known functions whose current behavior you can capture in tests before touching them. There is no `stub()` frontier here; **characterization tests are the frontier-equivalent** — they pin old behavior the way `stub()` pins intended new behavior.
 
-> **Scope is B1 — localized.** If the change spreads across many files or replaces a layer, stop and re-brainstorm (likely scaffold-and-swap, a separate design).
+> **Scope is localized.** If the change spreads across many files or replaces a layer, stop and re-brainstorm (likely a whole-subsystem replacement — see `ptk-finalizing`'s swap step).
 
 ## Before you start
 
-1. **Check git state** — run `git status` and `git log --oneline -5`. Note any uncommitted work; resolve or set it aside before changing behavior — you don't want unrelated changes mixed into a characterization commit.
-
-2. **Commit the decisions doc if present and uncommitted** — if `docs/plans/*-decisions.md` exists and is uncommitted, commit it first. `ptk-brainstorming` is read-only and cannot have committed it; persist the handoff before touching source (same discipline as `ptk-scaffold`). If you came here with no brainstorm, skip this step.
-
-3. **Find the design / new contract** — if a brainstorm produced a decisions doc, read `docs/plans/*-decisions.md` for the new contract. If you came here directly, the "design" is the user's stated new contract — restate it in **one sentence** and confirm with the user before proceeding. A behavior change with no crisp target contract is a signal to brainstorm first.
-
-4. **Confirm scope is B1 — localized** — the change should touch **1–3 known functions**. If it spreads across many files, replaces a layer, or you cannot name the target functions up front, stop: that's B2 or new architecture. Point the user to `/skill:ptk-brainstorming` (re-scope) or `/skill:ptk-scaffold` (new shape) instead. Forcing a large change through `ptk-modify` defeats the characterize→change→repin loop.
-
-5. **Identify the test harness** — confirm the project's test framework (vitest/jest/Go testing/etc.) and the exact command to run **just the affected test file** (e.g. `npx vitest run path/to/file.test.ts`, `go test ./pkg/...`). You'll run this repeatedly across the three phases; knowing the scoped command keeps the loop fast. If the target functions have **no existing tests**, note it — phase 1 (characterize) creates them from scratch.
+1. **Check git state** — `git status` and `git log --oneline -5`. Resolve or set aside uncommitted work first — you don't want unrelated changes mixed into a characterization commit.
+2. **Commit the decisions doc if uncommitted** — if `docs/plans/*-decisions.md` exists and is uncommitted, commit it first (brainstorm is read-only and can't have committed it). Persist the handoff before touching source, same discipline as `ptk-scaffold`. If you came here with no brainstorm, skip.
+3. **Find the new contract** — if a brainstorm produced a decisions doc, read `docs/plans/*-decisions.md` for it. Otherwise the "design" is the user's stated new contract — restate it in **one sentence** and confirm before proceeding. A behavior change with no crisp target contract is a signal to brainstorm first.
+4. **Confirm scope is localized** — the change should touch **1–3 known functions**. If it spreads across many files, replaces a layer, or you can't name the target functions up front, stop: that's a whole-subsystem replacement or new architecture. Point the user to `/skill:ptk-brainstorming` (re-scope) or `/skill:ptk-scaffold` (new shape).
+5. **Identify the test harness** — confirm the test framework and the exact command to run **just the affected test file** (e.g. `npx vitest run path/to/file.test.ts`, `go test ./pkg/...`). You'll run it repeatedly across the three phases. If the target functions have **no existing tests**, note it — phase 1 creates them from scratch.
 
 ## The loop
 
@@ -31,15 +27,15 @@ Every change runs three phases, kept green at the commit boundaries:
 2. **Change** — make the edit. Run the tests. Some go red. Classify each red as **intended** (behavior you meant to change) or **regression** (unexpected break). → do **not** commit yet.
 3. **Repin** — for each *intended*-red test, rewrite its expectation to the **new** contract. A *regression*-red means roll back the change, not the test. Run green → commit **green**.
 
-The invariant: **green at every commit.** The only red is the transient, uncommitted state in phase 2, and it is gated by a checkpoint.
+The invariant: **green at every commit.** The only red is the transient, uncommitted state in phase 2, gated by a checkpoint.
 
 ### 1. Characterize — pin current behavior
 
 Write tests that capture **what the code does today**, against the unmodified functions. This is the safety net — if a test fails *here*, the code was already broken (go to `/skill:ptk-diagnose`) or the test is wrong. Fix before proceeding.
 
-- **Run them green on the unchanged code.** A characterization test that doesn't pass before the change is useless — it tells you nothing about regressions. Confirm green first.
-- **Cover the behavior you're changing** AND the behavior you're **not** — other code paths in the same function, edge cases, and caller assumptions. Adjacent behavior is where silent regressions hide; pin it now.
-- **Mock external dependencies** — no real DB, network, filesystem, or wall-clock. Same sandboxing discipline as `ptk-execute`: inject fakes, set `NODE_ENV=test`, deterministic seeds. A flaky characterization test erodes the whole loop.
+- **Run them green on the unchanged code.** A characterization test that doesn't pass before the change is useless. Confirm green first.
+- **Cover the behavior you're changing AND the behavior you're not** — other code paths in the same function, edge cases, caller assumptions. Adjacent behavior is where silent regressions hide; pin it now.
+- **Mock external dependencies** — no real DB, network, filesystem, or wall-clock. Inject fakes, set `NODE_ENV=test`, deterministic seeds. A flaky characterization test erodes the whole loop.
 - **Assert what the code DOES, not what it SHOULD.** Resist writing "good" tests. If the current behavior is ugly (returns `null` on error, mutates input, off-by-one), pin the ugly behavior — that's exactly what a regression would break. The repin phase will rewrite these to the new contract.
 
 Commit green: `test: characterize <fn> current behavior`.
@@ -51,12 +47,11 @@ Make the edit — the new behavior, the signature change, the fix. Then run the 
 - **Classify every red** as one of:
   - **Intended-red** — the test pinned old behavior you deliberately changed. Expected. It gets repinned in phase 3.
   - **Regression-red** — the test pinned behavior you did **not** mean to touch. Unexpected. This is what the characterization was for.
-- **The red set is the behavioral delta.** If **zero** tests went red, something is wrong: either the change isn't observable (is it real?), or the characterization in phase 1 was incomplete — go back and pin more before proceeding. A change that breaks nothing it pinned is a change you can't trust.
-- A green run here (no reds at all) is suspicious, not reassuring.
+- **The red set is the behavioral delta.** If **zero** tests went red, something is wrong: either the change isn't observable (is it real?), or the characterization in phase 1 was incomplete — go back and pin more. A green run here (no reds at all) is suspicious, not reassuring.
 
 ### ⏸ CHECKPOINT: intentional red
 
-This is the one hard pause in `ptk-modify` — the moment working code has been edited and is sitting red. Stop. Do not commit. Present:
+The one hard pause — working code has been edited and is sitting red. Stop. Do not commit. Present:
 
 ```
 ⏸ Paused at checkpoint: intentional red
@@ -77,7 +72,7 @@ What would you like to do?
 - **stop** — pause here
 ```
 
-A regression-red is resolved by **changing the code** (narrow or roll back the change), **never by editing the test** to silence it. Editing a test to turn a regression green is exactly the failure mode this skill exists to prevent.
+A regression-red is resolved by **changing the code** (narrow or roll back), **never by editing the test** to silence it. Editing a test to turn a regression green is exactly the failure mode this skill exists to prevent.
 
 ### 3. Repin — update the contract
 
@@ -91,28 +86,24 @@ Commit: `feat: change <fn> to <new behavior> (<N> pins repinned)`.
 
 ### Commit
 
-One commit per change increment, and **every commit is green.** There are exactly two legal commit states:
+One commit per change increment, **every commit green.** Two legal commit states:
 
-- **After characterize** (phase 1) — green, all pins passing on old code. Message: `test: characterize <fn> current behavior`.
-- **After repin** (phase 3) — green, repinned pins passing on new code. Message: `feat: change <fn> to <new behavior> (<N> pins repinned)`.
+- **After characterize** (phase 1) — green, all pins passing on old code. `test: characterize <fn> current behavior`.
+- **After repin** (phase 3) — green, repinned pins passing on new code. `feat: change <fn> to <new behavior> (<N> pins repinned)`.
 
-The phase-2 red is **never committed.** It lives only in the working tree between the checkpoint and the repin. Small, reviewable commits — same discipline as `ptk-execute`.
+The phase-2 red is **never committed** — it lives only in the working tree between the checkpoint and the repin.
 
 ### If the change is too big
 
-If the change is too big — touches more than 1–3 functions, spans responsibilities, or produces a red set you **cannot cleanly classify** into intended vs regression — **do not force it.** This mirrors `ptk-execute`'s recursive re-stub, but for behavior changes.
+If the change touches more than 1–3 functions, spans responsibilities, or produces a red set you **cannot cleanly classify** into intended vs regression — **do not force it.** This mirrors `ptk-execute`'s recursive re-stub, but for behavior changes.
 
 **Split instead:** pick one sub-behavior, run the full **characterize → change → repin** loop on *just that* (commit green), then move to the next sub-behavior. Repeat.
 
-The red set being un-classifiable is itself the signal — it means the change is not B1. Either:
-- **split** it into independent sub-changes you can loop on one at a time, or
-- **re-brainstorm** — it may be B2 (replacing a subsystem), which needs scaffold-and-swap, not modify.
-
-Forcing a sprawling change through one loop iteration produces a confused red set that hides regressions, defeating the whole point of the characterization.
+The red set being un-classifiable is itself the signal — it means the change is not localized. Either split it into independent sub-changes you can loop on one at a time, or **re-brainstorm** (it may be a whole-subsystem replacement — which needs scaffold + the swap step in `ptk-finalizing`, not modify).
 
 ## After all changes
 
-When the user's stated changes are all done (no more functions to modify):
+When the user's stated changes are all done:
 
 ```
 ✅ All changes complete.
@@ -124,24 +115,19 @@ When the user's stated changes are all done (no more functions to modify):
 ```
 
 Next:
-- **Review the change:** `/skill:ptk-verify` — security, optimization, and traceability passes against the new contract (same as after `ptk-execute`).
+- **Review the change:** `/skill:ptk-verify` — security, optimization, and traceability passes against the new contract.
 - **Ship:** there is no separate finalize for `ptk-modify` (no sentinels or marker helper to strip). The characterization tests you added are the permanent artifact — they stay and guard the new behavior.
 
 > **If this change touched the kit's own skills or guard** (a meta-change to pi-topdown-kit), re-run the guard contract tests (`npm test`) — the guard's phase logic is the trust boundary.
 
 ## Principles
 
-- **Pin FIRST.** Never edit working code without a green characterization of what it currently does. The red set is meaningless without it — you can't tell intended from regression if you never pinned the starting state.
-- **Green at every commit.** The only red is the transient, checkpoint-gated phase-2 state. It is never committed.
-- **Intended-red vs regression is the core judgment.** A regression is fixed by changing the code, **never by editing the test**. Editing a test to make a regression pass is the failure mode this skill exists to prevent.
+- **Pin FIRST.** Never edit working code without a green characterization of what it currently does. You can't tell intended from regression if you never pinned the starting state.
+- **Intended-red vs regression is the core judgment.** A regression is fixed by changing the code, **never by editing the test** — that is the failure mode this skill exists to prevent.
 - **The characterization test IS the contract.** After repin it documents the new behavior and stays in the codebase, guarding the next modification to this same code.
-- **Characterize what the code DOES, not what it SHOULD.** In phase 1, resist writing "good" tests — capture actual behavior, even ugly behavior. The repin phase is where the test becomes "good".
-- **Scope is B1.** One to three known functions. If it's bigger, split or re-brainstorm — don't force a sprawling change through one loop iteration.
 
 ## Known limitation
 
-`ptk-modify` runs **unlocked** (`phase=null` — it writes source by design, like `ptk-scaffold` / `ptk-execute` / `ptk-finalizing`). Therefore the guard **cannot hard-enforce "characterize before you change"** the way `ptk-brainstorming` hard-blocks source writes.
+`ptk-modify` runs **unlocked** (`phase=null` — it writes source by design, like `ptk-scaffold` / `ptk-execute` / `ptk-finalizing`). So the guard **cannot hard-enforce "characterize before you change"** the way `ptk-brainstorming` hard-blocks source writes.
 
-The pin-first ordering is carried by **this skill's checkpoint** (the intentional-red pause) instead of by a hard block. This is weaker than brainstorm's enforcement and is **accepted** — the alternative (a separate blocking "characterize" phase + a "only `*.test.*` writable" rule) is over-build for B1's small scope, and the guard cannot cheaply express "only test files writable" anyway.
-
-A user who skips phase 1 and edits working code directly has **bypassed the skill, not the guard.** The discipline is instructional; the safety net is the checkpoint and the green-commit invariant.
+Pin-first ordering is carried by **the checkpoint** (the intentional-red pause) and the green-commit invariant instead. This is weaker than brainstorm's hard block and is **accepted** — the alternative (a separate blocking "characterize" phase + "only test files writable" rule) is over-build for modify's small scope, and the guard can't cheaply express "only `*.test.*` writable" anyway. A user who skips phase 1 and edits working code directly has **bypassed the skill, not the guard** — the discipline is instructional; the safety net is the checkpoint.
