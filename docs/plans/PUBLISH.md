@@ -26,8 +26,13 @@ This kit ships a `workflow-guard.ts` extension and `/skill:ptk-*` commands. `pi-
 ## Version + publish
 
 ```bash
-# Bump version (patch/minor/major as appropriate)
-npm version patch   # 0.1.0 -> 0.1.1
+# Update docs FIRST — before any version bump. The tag created below
+# captures the current tree, so CHANGELOG/README for the new version must
+# already be committed (see ptk-finalizing step 4). Bumping first leaves a
+# tag that doesn't describe its own release — only fixable by moving the
+# tag, which is a force-push.
+# (edit CHANGELOG.md + README.md for the new version, commit, then:)
+npm version patch   # 0.1.0 -> 0.1.1   (creates the version commit + tag vX.Y.Z)
 
 # Final local gate
 npm run check       # biome + vitest, must be green
