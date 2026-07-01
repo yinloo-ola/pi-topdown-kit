@@ -171,7 +171,7 @@ describe("isSafeCommand", () => {
     ).toBe(true);
   });
 
-  // --- Known bug tests (TODO: fix) ---
+  // --- Quote-aware handling ---
 
   // https://github.com/user/repo/issues/1 — 'code' in path matched editor regex
   it("allows cd && git status && echo && git log chain (path with 'code')", () => {
@@ -180,21 +180,33 @@ describe("isSafeCommand", () => {
     ).toBe(true);
   });
 
-  // Bug 1: quote-unaware && splitting
-  it("BUG: does NOT handle && inside quoted strings", () => {
-    // echo "a && b" && git status → splits on && inside quotes → breaks
-    // This test documents the current (broken) behavior.
-    // Change to toBe(true) once fixed.
-    expect(isSafeCommand('echo "use && for chaining" && git status')).toBe(false); // TODO: should be true
+  // Operators inside quoted arguments are literal, not shell operators.
+  it("handles && inside quoted strings (splitCompoundCommand is quote-aware)", () => {
+    // `echo "use && for chaining" && git status` — the && inside the quotes must
+    // not split the command; both real sub-commands (echo, git status) are safe.
+    expect(isSafeCommand('echo "use && for chaining" && git status')).toBe(true);
   });
 
-  // Bug 2: redirect regex matches > inside arguments
-  it("BUG: does NOT handle > inside grep arguments", () => {
-    // grep "x > y" file.txt → /(>)/ matches the > inside the quoted string
-    // This test documents the current (broken) behavior.
-    // Change to toBe(true) once fixed.
-    expect(isSafeCommand("grep 'x > y' file.txt")).toBe(false); // TODO: should be true
-    expect(isSafeCommand('grep "x > y" file.txt')).toBe(false); // TODO: should be true
+  it("handles > inside quoted grep arguments (destructive check is quote-aware)", () => {
+    // The > is a literal comparison operator in the search string, not a redirect.
+    expect(isSafeCommand("grep 'x > y' file.txt")).toBe(true);
+    expect(isSafeCommand('grep "x > y" file.txt')).toBe(true);
+  });
+
+  // --- Quote-awareness must not open real holes ---
+
+  it("still blocks a real destructive command after a quoted segment", () => {
+    // The rm is OUTSIDE the quotes — a real operator. Must stay blocked.
+    expect(isSafeCommand('echo "ignored" && rm -rf /')).toBe(false);
+  });
+
+  it("allows a destructive-looking word when it is entirely inside quotes", () => {
+    // "rm foo" is a literal argument to echo, not the rm command.
+    expect(isSafeCommand('echo "rm foo"')).toBe(true);
+  });
+
+  it("still blocks a real append redirect outside quotes", () => {
+    expect(isSafeCommand("echo x >> f")).toBe(false);
   });
 });
 

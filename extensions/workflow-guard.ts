@@ -124,17 +124,130 @@ const SAFE_PATTERNS = [
   /^\s*go\s+env\b/,
 ];
 
-/** Split a compound command into individual sub-commands.
- * Splits on &&, ||, and ; operators, ignoring leading whitespace.
- * Does NOT split on | (pipe) to allow piping (e.g. `git log | head`).
+/** Split a compound command into individual sub-commands, quote-aware.
+ * Splits on &&, ||, and ; but ONLY when they appear outside quoted regions,
+ * so a separator inside a quoted argument (e.g. `echo "a && b"`) is not treated
+ * as an operator. Single quotes are fully literal (nothing escapes inside them);
+ * inside double quotes, `\"` is an escaped quote and does not close the region.
+ * Does NOT split on | (pipe) — to allow `git log | head`.
  */
 function splitCompoundCommand(command: string): string[] {
-  // Match sub-commands separated by &&, ||, ; (with optional whitespace)
-  // We don't split on | to allow piping (e.g. `git log | head`)
-  return command
-    .split(/&&|\|\||;/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  const parts: string[] = [];
+  let current = "";
+  let inSingle = false;
+  let inDouble = false;
+  let i = 0;
+  while (i < command.length) {
+    const ch = command[i];
+    const next = command[i + 1];
+
+    if (inSingle) {
+      current += ch;
+      if (ch === "'") inSingle = false;
+      i++;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === "\\" && i + 1 < command.length) {
+        // Escaped char inside double quotes — keep both literally so a
+        // closing " preceded by \ does not end the region.
+        current += ch + next;
+        i += 2;
+        continue;
+      }
+      current += ch;
+      if (ch === '"') inDouble = false;
+      i++;
+      continue;
+    }
+
+    // Outside quotes.
+    if (ch === "'") {
+      inSingle = true;
+      current += ch;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      current += ch;
+      i++;
+      continue;
+    }
+    if ((ch === "&" && next === "&") || (ch === "|" && next === "|")) {
+      parts.push(current);
+      current = "";
+      i += 2;
+      continue;
+    }
+    if (ch === ";") {
+      parts.push(current);
+      current = "";
+      i++;
+      continue;
+    }
+    current += ch;
+    i++;
+  }
+  if (current.length > 0) parts.push(current);
+  return parts.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/** Replace the CONTENTS of quoted regions with `_`, leaving the quote chars
+ *  in place. Used so destructive patterns don't match operators that appear
+ *  inside a quoted argument — e.g. `grep 'x > y'` contains a literal `>`, not a
+ *  redirect. Operators outside quotes are preserved (and still detected).
+ *  Quoting semantics match splitCompoundCommand: single quotes literal,
+ *  `\"` escaped inside double quotes.
+ */
+function maskQuotedRegions(s: string): string {
+  let out = "";
+  let inSingle = false;
+  let inDouble = false;
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (inSingle) {
+      if (ch === "'") {
+        inSingle = false;
+        out += ch;
+      } else {
+        out += "_";
+      }
+      i++;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === "\\" && i + 1 < s.length) {
+        out += "__";
+        i += 2;
+        continue;
+      }
+      if (ch === '"') {
+        inDouble = false;
+        out += ch;
+      } else {
+        out += "_";
+      }
+      i++;
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      out += ch;
+      i++;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
 }
 
 /** Strip stderr redirects that are purely cosmetic (no side effects). */
@@ -146,7 +259,11 @@ export function isSafeCommand(command: string): boolean {
   const parts = splitCompoundCommand(command);
   return parts.every((part) => {
     const cleaned = stripHarmlessRedirects(part);
-    const isDestructive = DESTRUCTIVE_PATTERNS.some((p) => p.test(cleaned));
+    // Destructive operators inside quoted args are literal, not operators:
+    // check destructives against the quote-masked string. The leading-verb
+    // safe check runs against the unmasked string — verbs are never quoted.
+    const masked = maskQuotedRegions(cleaned);
+    const isDestructive = DESTRUCTIVE_PATTERNS.some((p) => p.test(masked));
     const isSafe = SAFE_PATTERNS.some((p) => p.test(cleaned));
     return !isDestructive && isSafe;
   });
