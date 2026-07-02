@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 /**
  * Tests for workflow-guard.ts
@@ -13,7 +13,8 @@ import { describe, it, expect } from "vitest";
  * core that the event handler delegates to.
  */
 
-import {
+import workflowGuard, {
+  getLockedRepoRoot,
   isRepoScopedCommand,
   isSafeCommand,
   phaseForInput,
@@ -354,6 +355,89 @@ describe("guard behavior for shell-pipeline forms (coherence contract)", () => {
         isSafeCommand("find . -name .ptk-scaffold -print0 | while IFS= read -r -d '' f; do grep -rnE x \"$f\"; done"),
       ).toBe(false);
     });
+  });
+});
+describe("workflow-guard tool_call integration", () => {
+  function createHarness() {
+    const handlers: Record<string, Array<(...args: any[]) => any>> = {};
+    const pi = {
+      on(event: string, handler: (...args: any[]) => any) {
+        handlers[event] = handlers[event] ?? [];
+        handlers[event].push(handler);
+      },
+    } as any;
+
+    workflowGuard(pi);
+
+    return {
+      async emit(event: string, ...args: any[]) {
+        let out: any;
+        for (const h of handlers[event] ?? []) {
+          out = await h(...args);
+        }
+        return out;
+      },
+    };
+  }
+
+  it("rewrites repo-scoped command to locked root in blocking phase", async () => {
+    const h = createHarness();
+    await h.emit("session_start", {});
+    await h.emit("input", { text: "/skill:ptk-brainstorming" });
+
+    const event = { toolName: "bash", input: { command: "git status" } };
+    const result = await h.emit("tool_call", event, {
+      cwd: "/repo",
+      hasUI: false,
+      ui: { notify: vi.fn(), confirm: vi.fn() },
+    });
+
+    expect(result).toBeUndefined();
+    expect(event.input.command).toBe("cd '/repo' && git status");
+    expect(getLockedRepoRoot()).toBe(resolve("/repo"));
+  });
+
+  it("fails closed for root-switch request when UI is unavailable", async () => {
+    const h = createHarness();
+    await h.emit("session_start", {});
+
+    const event = { toolName: "bash", input: { command: "cd /other && git status" } };
+    const result = await h.emit("tool_call", event, {
+      cwd: "/repo",
+      hasUI: false,
+      ui: { notify: vi.fn(), confirm: vi.fn() },
+    });
+
+    expect(result?.block).toBe(true);
+    expect(String(result?.reason ?? "")).toContain("non-interactive mode");
+  });
+
+  it("accepts interactive switch and uses new locked root", async () => {
+    const h = createHarness();
+    await h.emit("session_start", {});
+
+    const confirm = vi.fn().mockResolvedValue(true);
+
+    const switchEvent = { toolName: "bash", input: { command: "cd /other && git status" } };
+    const switchResult = await h.emit("tool_call", switchEvent, {
+      cwd: "/repo",
+      hasUI: true,
+      ui: { notify: vi.fn(), confirm },
+    });
+
+    expect(switchResult).toBeUndefined();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(getLockedRepoRoot()).toBe(resolve("/other"));
+
+    const event = { toolName: "bash", input: { command: "git status" } };
+    const result = await h.emit("tool_call", event, {
+      cwd: "/repo",
+      hasUI: true,
+      ui: { notify: vi.fn(), confirm: vi.fn() },
+    });
+
+    expect(result).toBeUndefined();
+    expect(event.input.command).toBe("cd '/other' && git status");
   });
 });
 
