@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { resolve, sep } from "node:path";
+import { basename, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -95,6 +95,7 @@ const SAFE_PATTERNS = [
   /^\s*free\b/,
   /^\s*git\s+(status|log|diff|show|branch|remote|config\s+--get)/i,
   /^\s*git\s+ls-/i,
+  /^\s*git\s+rev-parse\s+--show-toplevel\b/i,
   /^\s*npm\s+(list|ls|view|info|search|outdated|audit)/i,
   /^\s*yarn\s+(list|info|why|audit)/i,
   /^\s*node\s+--version/i,
@@ -281,6 +282,56 @@ function stripOuterQuotes(value: string): string {
   }
   return text;
 }
+function tokenizeCommandPart(commandPart: string): string[] {
+  return commandPart.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
+}
+
+function isEnvAssignment(token: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(token);
+}
+
+function normalizeRepoScopedCandidate(commandPart: string): string | null {
+  const cleaned = stripHarmlessRedirects(commandPart).trim();
+  if (!cleaned || /^cd\b/i.test(cleaned)) return null;
+
+  const tokens = tokenizeCommandPart(cleaned)
+    .map(stripOuterQuotes)
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) return null;
+
+  let i = 0;
+
+  // Optional leading inline env assignments.
+  while (i < tokens.length && isEnvAssignment(tokens[i])) i++;
+
+  // Optional `env` wrapper and its flags/assignments.
+  if (i < tokens.length && tokens[i] === "env") {
+    i++;
+    while (i < tokens.length) {
+      const t = tokens[i];
+      if (t === "--") {
+        i++;
+        break;
+      }
+      if (t.startsWith("-") || isEnvAssignment(t)) {
+        i++;
+        continue;
+      }
+      break;
+    }
+  }
+
+  // Common shell wrappers.
+  while (i < tokens.length && ["command", "builtin", "nohup"].includes(tokens[i])) {
+    i++;
+  }
+
+  if (i >= tokens.length) return null;
+
+  const executable = basename(tokens[i]).toLowerCase();
+  const rest = tokens.slice(i + 1).join(" ");
+  return rest ? `${executable} ${rest}` : executable;
+}
 
 function pathWithinOrEqual(candidate: string, root: string): boolean {
   const normalizedCandidate = resolve(candidate);
@@ -326,9 +377,9 @@ export function isSafeCommand(command: string): boolean {
 export function isRepoScopedCommand(command: string): boolean {
   const parts = splitCompoundCommand(command);
   return parts.some((part) => {
-    const cleaned = stripHarmlessRedirects(part).trim();
-    if (!cleaned || /^cd\b/i.test(cleaned)) return false;
-    return REPO_SCOPED_PATTERNS.some((p) => p.test(cleaned));
+    const normalized = normalizeRepoScopedCandidate(part);
+    if (!normalized) return false;
+    return REPO_SCOPED_PATTERNS.some((p) => p.test(normalized));
   });
 }
 

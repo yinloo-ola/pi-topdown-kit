@@ -230,16 +230,16 @@ describe("isRepoScopedCommand", () => {
     expect(isRepoScopedCommand("cd /tmp && ls")).toBe(false);
   });
 });
-describe("characterization: current pre-fix behavior", () => {
-  it("does NOT detect repo-scoped commands with env-prefix/wrapper forms", () => {
-    expect(isRepoScopedCommand("GF_GCFG_PATH=. go test ./...")).toBe(false);
-    expect(isRepoScopedCommand("env FOO=1 git status")).toBe(false);
-    expect(isRepoScopedCommand("/usr/bin/git status")).toBe(false);
-    expect(isRepoScopedCommand("command git status")).toBe(false);
+describe("repinned contract: repo-scoped detection and cwd check", () => {
+  it("detects repo-scoped commands with env-prefix/wrapper forms", () => {
+    expect(isRepoScopedCommand("GF_GCFG_PATH=. go test ./...")).toBe(true);
+    expect(isRepoScopedCommand("env FOO=1 git status")).toBe(true);
+    expect(isRepoScopedCommand("/usr/bin/git status")).toBe(true);
+    expect(isRepoScopedCommand("command git status")).toBe(true);
   });
 
-  it("blocks git rev-parse --show-toplevel in blocking phases", () => {
-    expect(isSafeCommand("git rev-parse --show-toplevel")).toBe(false);
+  it("allows git rev-parse --show-toplevel in blocking phases", () => {
+    expect(isSafeCommand("git rev-parse --show-toplevel")).toBe(true);
   });
 });
 
