@@ -1,4 +1,9 @@
 # Changelog
+## Unreleased
+
+- **Guard: robust repo-scoped command detection.** `workflow-guard` now recognizes wrapped/prefixed repo-scoped commands (inline env assignments, `env`, `command`, absolute git binary paths) before applying root-lock logic.
+- **Guard: CWD-check command parity fixed.** Blocking-phase allowlist now permits `git rev-parse --show-toplevel`, matching skill CWD-check instructions.
+- **Tests: integration coverage for `tool_call` root-lock flow.** Added end-to-end guard tests for rewrite behavior, interactive root switch confirmation, and non-interactive fail-closed handling.
 ## 0.3.0
 
 - **New: replace a whole live subsystem.** `ptk-finalizing` gains a Swap step — repoint callers from old X to new X', suite goes green, delete old. Brainstorm's triage now routes subsystem replacements: scaffold the replacement, then finalize swaps it in. Big-bang cutover is documented; large or contract-changing swaps point at incremental cutover via `ptk-modify`.
