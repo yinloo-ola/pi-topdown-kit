@@ -1,6 +1,6 @@
 {
   "name": "@tianhai/pi-topdown-kit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Scaffold-first, top-down layered workflow for AI coding agents — the skeleton IS the plan",
   "keywords": [
     "pi-package",
