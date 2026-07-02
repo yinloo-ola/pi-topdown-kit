@@ -12,6 +12,8 @@ Materialize the system design blueprint as **real code**. This is where the chun
 ## Before you start
 
 1. **Check git state** — `git status` and `git log --oneline -5`. Note uncommitted changes.
+> **CWD check:** Before any repo-scoped command (`git`, build, test), run `pwd && git rev-parse --show-toplevel`.
+> If it doesn't match the project you're editing, run commands as `cd <project-root> && <command>`.
 2. **Detect resume vs fresh start** — cross-session coherence keys on artifacts on disk, not commit messages. Match the first row that applies:
 
    | State on disk | Action |

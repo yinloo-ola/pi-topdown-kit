@@ -12,6 +12,8 @@ Fill the stubs scaffold left behind. **Layer by layer** (top-down), one stub + i
 ## Before you start
 
 1. **Check git state** — `git status` and `git log --oneline -5`. Note uncommitted changes.
+> **CWD check:** Before any repo-scoped command (`git`, build, test), run `pwd && git rev-parse --show-toplevel`.
+> If it doesn't match the project you're editing, run commands as `cd <project-root> && <command>`.
 2. **Find the skeleton** — there must be `.ptk-scaffold` sentinels with `stub()` call sites on disk, and a `scaffold:` commit in history. (On resume the last commit may be `feat: fill …` — the sentinel + call sites on disk are the real signal, not the most-recent commit message, which scrolls off `git log -5`.) If none exist: "No skeleton found. Run `/skill:ptk-scaffold` first." and stop.
 3. **Read `docs/plans/*-decisions.md`** for feature intent. Read `docs/lessons.md` if it exists — follow every rule.
 4. **Pick the feature** (if several sentinels exist) — read each sentinel's `# feature:` line and ask the user which to work on. Remember the chosen sentinel's path and directory; scope **every** frontier query below to that directory.

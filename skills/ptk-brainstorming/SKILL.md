@@ -12,6 +12,8 @@ This skill owns the **why / what**. It does not design the skeleton — that is 
 ## Process
 
 1. **Check git state** — run `git status` and `git log --oneline -5`. If there's uncommitted work, ask the user what to do with it first.
+> **CWD check:** Before any repo-scoped command (`git`, build, test), run `pwd && git rev-parse --show-toplevel`.
+> If it doesn't match the project you're editing, run commands as `cd <project-root> && <command>`.
 2. **Understand the idea** — read existing code, docs, and recent commits. Grep for related functionality, check package.json/dependencies and module structure. **Check `docs/lessons.md`** if it exists — known constraints and patterns may affect the design. Read only what's necessary to ground the design — don't read the entire codebase. Ask questions to refine the idea. Prefer multiple choice when possible. After each question, check: can you clearly articulate (a) what the user wants to build, (b) why, and (c) key constraints? If yes, present your understanding as a short summary and ask: "Should I proceed with this, or is there more to add?" The human decides when to move on.
 3. **Explore approaches** — propose 2-3 approaches. For each, describe the shape at a high level (which modules, which layers, how they interact) — *not* concrete code. Concrete signatures, types, and stubs are `ptk-scaffold`'s job; deciding them here would duplicate that work and lock in detail before the human has approved the shape. Lead with your recommendation.
 4. **Record decisions** — as the discussion converges, capture each significant decision in the decisions log (ADR-style). Only write an ADR when all three are true:

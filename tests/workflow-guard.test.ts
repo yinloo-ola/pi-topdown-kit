@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 
 /**
@@ -12,7 +13,13 @@ import { describe, it, expect } from "vitest";
  * core that the event handler delegates to.
  */
 
-import { isSafeCommand, shouldBlockFilePath, phaseForInput } from "../extensions/workflow-guard";
+import {
+  isRepoScopedCommand,
+  isSafeCommand,
+  phaseForInput,
+  planRepoScopedBashCommand,
+  shouldBlockFilePath,
+} from "../extensions/workflow-guard";
 
 describe("isSafeCommand", () => {
   it("allows safe read-only commands", () => {
@@ -207,6 +214,61 @@ describe("isSafeCommand", () => {
 
   it("still blocks a real append redirect outside quotes", () => {
     expect(isSafeCommand("echo x >> f")).toBe(false);
+  });
+});
+
+describe("isRepoScopedCommand", () => {
+  it("detects repo-scoped commands", () => {
+    expect(isRepoScopedCommand("git status")).toBe(true);
+    expect(isRepoScopedCommand("go test ./...")).toBe(true);
+    expect(isRepoScopedCommand("npm test")).toBe(true);
+  });
+
+  it("ignores non-repo-scoped commands", () => {
+    expect(isRepoScopedCommand("ls -la")).toBe(false);
+    expect(isRepoScopedCommand("cat README.md")).toBe(false);
+    expect(isRepoScopedCommand("cd /tmp && ls")).toBe(false);
+  });
+});
+
+describe("planRepoScopedBashCommand", () => {
+  it("locks to cwd and rewrites repo-scoped commands", () => {
+    const cwd = resolve("/repo");
+    const plan = planRepoScopedBashCommand("git status", null, cwd, true);
+    expect(plan.action).toBe("rewrite");
+    if (plan.action !== "rewrite") return;
+    expect(plan.lockedRoot).toBe(cwd);
+    expect(plan.rewrittenCommand).toBe(`cd '${cwd}' && git status`);
+  });
+
+  it("does not rewrite when command already starts with cd inside locked root", () => {
+    const lockedRoot = resolve("/repo");
+    const plan = planRepoScopedBashCommand("cd /repo/sub && git status", lockedRoot, lockedRoot, true);
+    expect(plan.action).toBe("noop");
+    if (plan.action !== "noop") return;
+    expect(plan.lockedRoot).toBe(lockedRoot);
+  });
+
+  it("requires confirmation for explicit root switch in interactive mode", () => {
+    const plan = planRepoScopedBashCommand("cd /other-repo && git status", "/repo", "/repo", true);
+    expect(plan.action).toBe("confirm-switch");
+    if (plan.action !== "confirm-switch") return;
+    expect(plan.currentRoot).toBe(resolve("/repo"));
+    expect(plan.candidateRoot).toBe(resolve("/other-repo"));
+  });
+
+  it("fails closed for explicit root switch in non-interactive mode", () => {
+    const plan = planRepoScopedBashCommand("cd /other-repo && git status", "/repo", "/repo", false);
+    expect(plan.action).toBe("block");
+    if (plan.action !== "block") return;
+    expect(plan.reason).toContain("non-interactive mode");
+  });
+
+  it("leaves non-repo commands untouched", () => {
+    const plan = planRepoScopedBashCommand("ls -la", null, "/repo", true);
+    expect(plan.action).toBe("noop");
+    if (plan.action !== "noop") return;
+    expect(plan.lockedRoot).toBe(null);
   });
 });
 

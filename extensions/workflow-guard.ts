@@ -1,4 +1,5 @@
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -122,6 +123,20 @@ const SAFE_PATTERNS = [
   /^\s*go\s+list\b/,
   /^\s*go\s+version\b/,
   /^\s*go\s+env\b/,
+];
+
+// Commands that should run in a known project root to avoid wrong-repo execution.
+const REPO_SCOPED_PATTERNS = [
+  /^\s*git\b/i,
+  /^\s*go\s+(test|build|run|vet|fmt|mod|work)\b/i,
+  /^\s*npm\s+(test|run|exec|start|build|lint|check)\b/i,
+  /^\s*yarn\s+(test|run|start|build|lint|check)\b/i,
+  /^\s*pnpm\s+(test|run|start|build|lint|check)\b/i,
+  /^\s*bun\s+(test|run)\b/i,
+  /^\s*make\b/i,
+  /^\s*cargo\s+(test|build|run|check)\b/i,
+  /^\s*pytest\b/i,
+  /^\s*python\s+-m\s+pytest\b/i,
 ];
 
 /** Split a compound command into individual sub-commands, quote-aware.
@@ -255,6 +270,45 @@ function stripHarmlessRedirects(cmd: string): string {
   return cmd.replace(/\s*2\s*>\s*(\/dev\/null|&1)\b/g, "");
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function stripOuterQuotes(value: string): string {
+  const text = value.trim();
+  if ((text.startsWith("'") && text.endsWith("'")) || (text.startsWith('"') && text.endsWith('"'))) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+function pathWithinOrEqual(candidate: string, root: string): boolean {
+  const normalizedCandidate = resolve(candidate);
+  const normalizedRoot = resolve(root);
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${sep}`);
+}
+
+function parseLeadingCdTarget(command: string): string | null {
+  const firstPart = splitCompoundCommand(command)[0]?.trim() ?? "";
+  const match = firstPart.match(/^cd(?:\s+(.+))$/i);
+  if (!match) return null;
+  const target = stripOuterQuotes(match[1] ?? "");
+  if (!target || target === "-") return null;
+  return target;
+}
+
+function resolveCdTarget(target: string, cwd: string): string {
+  if (target === "~") return homedir();
+  if (target.startsWith("~/") || target.startsWith("~\\")) {
+    return resolve(homedir(), target.slice(2));
+  }
+  return resolve(cwd, target);
+}
+
+function rewriteWithLockedRoot(command: string, lockedRoot: string): string {
+  return `cd ${shellQuote(lockedRoot)} && ${command}`;
+}
+
 export function isSafeCommand(command: string): boolean {
   const parts = splitCompoundCommand(command);
   return parts.every((part) => {
@@ -267,6 +321,70 @@ export function isSafeCommand(command: string): boolean {
     const isSafe = SAFE_PATTERNS.some((p) => p.test(cleaned));
     return !isDestructive && isSafe;
   });
+}
+
+export function isRepoScopedCommand(command: string): boolean {
+  const parts = splitCompoundCommand(command);
+  return parts.some((part) => {
+    const cleaned = stripHarmlessRedirects(part).trim();
+    if (!cleaned || /^cd\b/i.test(cleaned)) return false;
+    return REPO_SCOPED_PATTERNS.some((p) => p.test(cleaned));
+  });
+}
+
+export type RepoScopedBashPlan =
+  | { action: "noop"; lockedRoot: string | null }
+  | { action: "rewrite"; lockedRoot: string; rewrittenCommand: string }
+  | { action: "confirm-switch"; lockedRoot: string; currentRoot: string; candidateRoot: string }
+  | { action: "block"; lockedRoot: string; reason: string };
+
+export function planRepoScopedBashCommand(
+  command: string,
+  lockedRoot: string | null,
+  cwd: string,
+  hasUI: boolean,
+): RepoScopedBashPlan {
+  if (!isRepoScopedCommand(command)) {
+    return { action: "noop", lockedRoot };
+  }
+
+  // Hybrid strategy: initialize from session cwd, then require explicit confirmation
+  // for an implicit switch request (explicit `cd ... && <repo-scoped command>`).
+  const currentRoot = lockedRoot ? resolve(lockedRoot) : resolve(cwd);
+  const explicitTarget = parseLeadingCdTarget(command);
+  const explicitRoot = explicitTarget ? resolveCdTarget(explicitTarget, cwd) : null;
+
+  if (explicitRoot && !pathWithinOrEqual(explicitRoot, currentRoot)) {
+    if (!hasUI) {
+      return {
+        action: "block",
+        lockedRoot: currentRoot,
+        reason:
+          `⚠️ CWD root switch blocked (non-interactive mode).\n` +
+          `Current locked root: ${currentRoot}\n` +
+          `Requested root: ${explicitRoot}\n` +
+          `Command: ${command}\n` +
+          `Run in interactive mode to confirm this root switch.`,
+      };
+    }
+    return {
+      action: "confirm-switch",
+      lockedRoot: currentRoot,
+      currentRoot,
+      candidateRoot: explicitRoot,
+    };
+  }
+
+  if (explicitRoot) {
+    // Explicit `cd` to current root/subdir is trusted intent; no auto-prefix needed.
+    return { action: "noop", lockedRoot: currentRoot };
+  }
+
+  return {
+    action: "rewrite",
+    lockedRoot: currentRoot,
+    rewrittenCommand: rewriteWithLockedRoot(command, currentRoot),
+  };
 }
 
 const SKILL_TO_PHASE: Record<string, Phase> = {
@@ -320,11 +438,18 @@ export function getCurrentPhase(): Phase {
   return phase;
 }
 
+/** Current locked bash project root for repo-scoped command reconciliation. */
+export function getLockedRepoRoot(): string | null {
+  return lockedRepoRoot;
+}
+
 let phase: Phase = null;
+let lockedRepoRoot: string | null = null;
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", () => {
     phase = null;
+    lockedRepoRoot = null;
   });
 
   pi.on("input", (event) => {
@@ -332,22 +457,62 @@ export default function (pi: ExtensionAPI) {
     phase = phaseForInput(text, phase);
   });
 
-  pi.on("tool_call", (event, ctx) => {
-    if (!phase) return;
-
+  pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === "bash") {
-      const command = (event.input as { command?: string }).command ?? "";
-      if (!isSafeCommand(command)) {
+      const input = event.input as { command?: string };
+      const originalCommand = input.command ?? "";
+
+      const plan = planRepoScopedBashCommand(originalCommand, lockedRepoRoot, ctx.cwd, ctx.hasUI);
+      if (plan.action === "block") {
+        lockedRepoRoot = plan.lockedRoot;
         if (ctx.hasUI) {
-          ctx.ui.notify(`Blocked bash command during ${phase} phase: ${command}`, "warning");
+          ctx.ui.notify(plan.reason, "warning");
+        }
+        return { block: true, reason: plan.reason };
+      }
+
+      if (plan.action === "confirm-switch") {
+        const ok =
+          ctx.hasUI &&
+          (await ctx.ui.confirm(
+            "Switch locked project root?",
+            `Current root: ${plan.currentRoot}\nRequested root: ${plan.candidateRoot}\n\nCommand:\n${originalCommand}`,
+          ));
+
+        if (!ok) {
+          lockedRepoRoot = plan.lockedRoot;
+          return {
+            block: true,
+            reason:
+              `⚠️ CWD root switch rejected.\n` +
+              `Current locked root: ${plan.currentRoot}\n` +
+              `Requested root: ${plan.candidateRoot}\n` +
+              `Command: ${originalCommand}`,
+          };
+        }
+
+        lockedRepoRoot = plan.candidateRoot;
+      } else if (plan.action === "rewrite") {
+        lockedRepoRoot = plan.lockedRoot;
+        input.command = plan.rewrittenCommand;
+      } else {
+        lockedRepoRoot = plan.lockedRoot;
+      }
+
+      const effectiveCommand = input.command ?? "";
+      if (phase && !isSafeCommand(effectiveCommand)) {
+        if (ctx.hasUI) {
+          ctx.ui.notify(`Blocked bash command during ${phase} phase: ${effectiveCommand}`, "warning");
         }
         return {
           block: true,
-          reason: `⚠️ ${phase.toUpperCase()} PHASE: Bash command blocked (not allowlisted). Only read-only commands are permitted during brainstorming and verification.\nCommand: ${command}`,
+          reason: `⚠️ ${phase.toUpperCase()} PHASE: Bash command blocked (not allowlisted). Only read-only commands are permitted during brainstorming and verification.\nCommand: ${effectiveCommand}`,
         };
       }
       return;
     }
+
+    if (!phase) return;
 
     if (event.toolName !== "write" && event.toolName !== "edit") return;
 

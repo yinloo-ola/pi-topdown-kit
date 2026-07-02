@@ -14,6 +14,8 @@ The core insight: code that passes tests is not code that's ready. Working code 
 ## Process
 
 1. **Check scope and feature** — `git log --oneline` and `git diff --stat`. If more than one `.ptk-scaffold` sentinel exists, list each sentinel's `# feature:` line and ask the user which to verify; scope all checks to that sentinel's directory.
+> **CWD check:** Before any repo-scoped command (`git`, build, test), run `pwd && git rev-parse --show-toplevel`.
+   > If it doesn't match the project you're editing, run commands as `cd <project-root> && <command>`.
 
    **Confirm the frontier is empty for that feature.** If a sentinel exists, find every stub call site under its directory (the sentinel's first non-comment line is the ERE pattern; use whatever search tool you have). If stubs remain: "Frontier is not empty — N stubs still unfilled. Run `/skill:ptk-execute` first." and stop. **If no sentinel exists** (e.g. after a `ptk-modify` session — its pins are characterization tests, not `stub()` call sites), skip the frontier check and scope the review to the recent `git diff` instead.
 

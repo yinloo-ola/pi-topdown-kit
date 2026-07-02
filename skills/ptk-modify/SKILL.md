@@ -14,6 +14,8 @@ Change the behavior of **existing working code** without losing what it already 
 ## Before you start
 
 1. **Check git state** — `git status` and `git log --oneline -5`. Resolve or set aside uncommitted work first — you don't want unrelated changes mixed into a characterization commit.
+> **CWD check:** Before any repo-scoped command (`git`, build, test), run `pwd && git rev-parse --show-toplevel`.
+> If it doesn't match the project you're editing, run commands as `cd <project-root> && <command>`.
 2. **Commit the decisions doc if uncommitted** — if `docs/plans/*-decisions.md` exists and is uncommitted, commit it first (brainstorm is read-only and can't have committed it). Persist the handoff before touching source, same discipline as `ptk-scaffold`. If you came here with no brainstorm, skip.
 3. **Find the new contract** — if a brainstorm produced a decisions doc, read `docs/plans/*-decisions.md` for it. Otherwise the "design" is the user's stated new contract — restate it in **one sentence** and confirm before proceeding. A behavior change with no crisp target contract is a signal to brainstorm first.
 4. **Confirm scope is localized** — the change should touch **1–3 known functions**. If it spreads across many files, replaces a layer, or you can't name the target functions up front, stop: that's a whole-subsystem replacement or new architecture. Point the user to `/skill:ptk-brainstorming` (re-scope) or `/skill:ptk-scaffold` (new shape).
